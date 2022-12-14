@@ -31,5 +31,6 @@ setup(
      install_requires=[
              'numpy>=1.16.0',
              'nibabel>=3.1.0',
+             'scipy>=1.6.0'
          ]
 )

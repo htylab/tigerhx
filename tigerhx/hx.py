@@ -29,8 +29,9 @@ def get_report(input_file, output_file):
              'LV_vol': LV_vol,
              'LVM_vol': LVM_vol,
              'RV_vol': RV_vol}
-
-    savemat(output_file.replace('.nii.gz', '.mat'), dict1, do_compression=True)
+    mat_file = output_file.replace('.nii.gz', '.mat')
+    savemat(mat_file, dict1, do_compression=True)
+    return mat_file
 
 
 def path(string):
@@ -108,7 +109,10 @@ def run_args(args):
 
     model_name = lib_tool.get_model(args.model)
 
+    result_list = []
+
     for f in input_file_list:
+        result_dict = dict()
 
         print('Predicting:', f)
         t = time.time()
@@ -120,9 +124,18 @@ def run_args(args):
              f, output_dir, mask_pred, postfix='hx')
 
         if args.report:
-            get_report(f, output_file)
+            result_dict['report'] = get_report(f, output_file)
 
-        print('Processing time: %d seconds' % (time.time() - t))    
+        result_dict['input'] = f
+        result_dict['output'] = output_file
+
+        result_list.append(result_dict)
+        print('Processing time: %d seconds' % (time.time() - t))
+
+    if len(result_list) == 1:
+        return result_list[0]
+    else:
+        return result_list
 
 if __name__ == "__main__":
     main()
