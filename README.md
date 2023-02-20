@@ -9,7 +9,7 @@
     https://github.com/htylab/tigerhx/releases
 ### Install package
     pip install onnxruntime #for gpu version: onnxruntime-gpu
-    pip install https://github.com/htylab/tigerhx/archive/release.zip
+    pip install https://github.com/htylab/tigerhx/archive/main.zip
     
 ## Usage
     import tigerhx
