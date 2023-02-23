@@ -48,7 +48,7 @@ def run(model_ff, input_data, GPU):
     if xyzt_mode == 'xyt':
         data = np.transpose(data, [0, 1, 3, 2])
 
-    if xyzt_mode == 'xy':
+    if (xyzt_mode == 'xy') or (xyzt_mode == 'xy2'):
         xx, yy, zz, tt = data.shape
         data = np.reshape(data, [xx, yy, zz*tt])
 
@@ -71,23 +71,25 @@ def run(model_ff, input_data, GPU):
         logits = lib_tool.predict(model_ff, image, GPU)
    
         #logits = session.run(None, {"modelInput": image.astype(np.float32)})[0]
-
-        mask_pred = post(np.argmax(logits[0, ...], axis=0))
-        mask_softmax = softmax(logits[0, ...], axis=0)
+        if xyzt_mode == 'xy2':
+            mask_pred = post(np.argmax(logits[0, 1:5, ...], axis=0))
+        else:
+            mask_pred = post(np.argmax(logits[0, ...], axis=0))
+        #mask_softmax = softmax(logits[0, ...], axis=0)
 
         #print(xyzt_mode, tti, image.max(), mask_pred.max(), image.shape)
 
         mask_pred4d[..., tti] = mask_pred
-        mask_softmax4d[..., tti] = mask_softmax
+        #mask_softmax4d[..., tti] = mask_softmax
 
 
     if xyzt_mode == 'xyt':
         mask_pred4d = np.transpose(mask_pred4d, [0, 1, 3, 2])
-        mask_softmax4d = np.transpose(mask_softmax4d, [0, 1, 2, 4, 3])
+        #mask_softmax4d = np.transpose(mask_softmax4d, [0, 1, 2, 4, 3])
 
-    if xyzt_mode == 'xy':
+    if (xyzt_mode == 'xy') or (xyzt_mode == 'xy2'):
         mask_pred4d = np.reshape(mask_pred4d, [xx, yy, zz, tt])
-        mask_softmax4d = np.reshape(mask_softmax4d, [4, xx, yy, zz, tt])
+        #mask_softmax4d = np.reshape(mask_softmax4d, [4, xx, yy, zz, tt])
 
     mask_pred4d = post(mask_pred4d)
 
