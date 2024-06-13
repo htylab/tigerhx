@@ -105,7 +105,8 @@ def run_args(args):
     print('Total nii files:', len(input_file_list))
 
     if args.model is None:
-        args.model = 'cine4d_xyz_v002_m12ac'
+        #args.model = 'cine4d_xyz_v002_m12ac'
+        args.model = cine4d_v0003_xy_mms12acdc.onnx
         #args.model = 'cine4d_xyz_v001_m12.onnx'
 
     model_name = lib_tool.get_model(args.model)
