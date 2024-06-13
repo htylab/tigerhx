@@ -12,7 +12,7 @@ classifiers = [
 
 setup(
      name='tigerhx',
-     version='0.0.1',
+     version='0.0.2',
      description='Processing MRI images based on deep-learning',
      long_description_content_type='text/markdown',
      url='https://github.com/htylab/tigerhx',
