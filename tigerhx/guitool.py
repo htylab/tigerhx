@@ -89,7 +89,7 @@ def get_ahaseg(mask, nseg=6):
     return label_mask
 
 def predict_cine4d(input_file, img, model_ff, progress_bar=None, root=None):
-    xyzt_mode = basename(model_ff).split('_')[1]
+    xyzt_mode = basename(model_ff).split('_')[2]
     session = onnxruntime.InferenceSession(model_ff)
     data = img.copy()
 

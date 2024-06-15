@@ -6,8 +6,9 @@ import threading
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from guitool import *
-from os.path import join
+from os.path import join, isfile
 from skimage.transform import resize
+from tigerhx import lib_tool
 
 # determine if application is a script file or frozen exe
 if getattr(sys, 'frozen', False):
@@ -20,8 +21,36 @@ print(application_path)
 
 model_path = join(application_path, 'models')
 output_path = join(application_path, 'output')
+os.makedirs(model_path, exist_ok=True)
+
+model_server = 'https://github.com/htylab/tigerhx/releases/download/modelhub/'
+
+default_models = ['cine4d_v0001_xyz_mms12.onnx',
+                  'cine4d_v0002_xyz_mms12acdc.onnx',
+                  'cine4d_v0003_xy_mms12acdc.onnx']
 
 os.makedirs(output_path, exist_ok=True)
+
+for m0 in default_models:
+
+    model_file = join(model_path, m0)
+
+    if not isfile(model_file):       
+
+        try:
+            print(f'Downloading model files....')
+            model_url = model_server + m0
+            print(model_url, model_file)
+            lib_tool.download(model_url, model_file)
+            download_ok = True
+            print('Download finished...')
+        except:
+            download_ok = False
+
+        if not download_ok:
+            raise ValueError('Server error. Please check the model name or internet connection.')
+
+
 
 # Global variables
 log_box = None
