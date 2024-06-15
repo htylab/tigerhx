@@ -5,9 +5,9 @@ name: Python compile
 
 on:
   push:
-    branches: [ "gui" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "gui" ]
+    branches: [ "main" ]
 
 permissions:
   contents: read
