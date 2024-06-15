@@ -43,21 +43,19 @@ def run(model_ff, input_data, GPU):
 
 
     data = input_data.copy()
-    xx, yy, zz, tt = data.shape
 
-    if xyzt_mode == 'xyt':
-        data = np.transpose(data, [0, 1, 3, 2])
+    data4d = (len(data.shape) == 4)
 
-    if (xyzt_mode == 'xy') or (xyzt_mode == 'xy2'):
+    if data4d:
         xx, yy, zz, tt = data.shape
-        data = np.reshape(data, [xx, yy, zz*tt])
 
-    #affine = temp.affine
-    #zoom = temp.header.get_zooms()
+        data = np.reshape(data, [xx, yy, zz*tt])
+    else:
+        xx, yy, zz = data.shape
 
     
-    mask_pred4d = data * 0
-    mask_softmax4d = np.zeros(np.insert(data.shape, 0, 4))
+    mask_pred3d = data * 0
+
 
     
     for tti in range(data.shape[-1]):
@@ -70,28 +68,16 @@ def run(model_ff, input_data, GPU):
 
         logits = lib_tool.predict(model_ff, image, GPU)
    
-        #logits = session.run(None, {"modelInput": image.astype(np.float32)})[0]
-        if xyzt_mode == 'xy2':
-            mask_pred = post(np.argmax(logits[0, 1:5, ...], axis=0))
-        else:
-            mask_pred = post(np.argmax(logits[0, ...], axis=0))
-        #mask_softmax = softmax(logits[0, ...], axis=0)
+        mask_pred = post(np.argmax(logits[0, ...], axis=0))
+        mask_pred3d[..., tti] = mask_pred
 
-        #print(xyzt_mode, tti, image.max(), mask_pred.max(), image.shape)
-
-        mask_pred4d[..., tti] = mask_pred
-        #mask_softmax4d[..., tti] = mask_softmax
+    if data4d:
+        mask_pred_final = np.reshape(mask_pred3d, [xx, yy, zz, tt])
+    else:
+        mask_pred_final = mask_pred3d
 
 
-    if xyzt_mode == 'xyt':
-        mask_pred4d = np.transpose(mask_pred4d, [0, 1, 3, 2])
-        #mask_softmax4d = np.transpose(mask_softmax4d, [0, 1, 2, 4, 3])
+    mask_pred_final = post(mask_pred_final)
 
-    if (xyzt_mode == 'xy') or (xyzt_mode == 'xy2'):
-        mask_pred4d = np.reshape(mask_pred4d, [xx, yy, zz, tt])
-        #mask_softmax4d = np.reshape(mask_softmax4d, [4, xx, yy, zz, tt])
-
-    mask_pred4d = post(mask_pred4d)
-
-    return mask_pred4d
+    return mask_pred_final
 

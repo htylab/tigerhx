@@ -1,6 +1,6 @@
 import sys
 import os
-from os.path import join, isdir, basename
+from os.path import join, isdir, basename, dirname
 import argparse
 import glob
 from scipy.io import savemat
@@ -12,27 +12,6 @@ from tigerhx import lib_hx
 from tigerhx import lib_tool
 
 
-def get_report(input_file, output_file):
-    
-    temp = nib.load(output_file)
-    mask4d = temp.get_fdata()
-    voxel_size = temp.header.get_zooms()
-    
-    LV_vol = np.sum(mask4d==1, axis=(0, 1, 2))* np.prod(voxel_size[0:3]) / 1000.
-    LVM_vol = np.sum(mask4d==2, axis=(0, 1, 2))* np.prod(voxel_size[0:3]) / 1000.
-    RV_vol = np.sum(mask4d==3, axis=(0, 1, 2))* np.prod(voxel_size[0:3]) / 1000.
-    
-    dict1 = {"input":np.asanyarray(nib.load(input_file).dataobj),
-             'LV': (mask4d==1)*1,
-             'LVM':(mask4d==2)*1,
-             'RV': (mask4d==3)*1,
-             'LV_vol': LV_vol,
-             'LVM_vol': LVM_vol,
-             'RV_vol': RV_vol}
-    mat_file = output_file.replace('.nii.gz', '.mat')
-    savemat(mat_file, dict1, do_compression=True)
-    return mat_file
-
 
 def path(string):
     if os.path.exists(string):
@@ -42,22 +21,29 @@ def path(string):
 
 def write_file(input_file, output_dir, mask, postfix='pred'):
 
-    if not isdir(output_dir):
-        print('Output dir does not exist.')
-        return 0
+    if output_dir is None:
+        output_dir = dirname(input_file)
 
-    output_file = basename(input_file).replace('.nii.gz', '').replace('.nii', '') 
-    output_file = output_file + f'_{postfix}.nii.gz'
+    output_file = basename(input_file).replace('.nii.gz', '').replace('.nii', '')
+    subfile = basename(input_file).replace(output_file, '') # get .nii.gz or .nii
+    output_file = output_file + f'_{postfix}{subfile}'
     output_file = join(output_dir, output_file)
     print('Writing output file: ', output_file)
 
     input_nib = nib.load(input_file)
-    affine = input_nib.affine
-    zoom = input_nib.header.get_zooms()   
-    result = nib.Nifti1Image(mask.astype(np.uint8), affine)
-    result.header.set_zooms(zoom)
+
+    print(input_nib.shape)
+    print(mask.shape)
+    result = nib.Nifti1Image(mask.astype(np.uint8), input_nib.affine, input_nib.header)
+ 
 
     nib.save(result, output_file)
+
+    result = nib.Nifti1Image(input_nib.get_fdata().astype(int), input_nib.affine, input_nib.header)
+ 
+
+    nib.save(result, output_file.replace('_hx', '_new'))
+
 
     return output_file
 
@@ -68,7 +54,6 @@ def main():
     parser.add_argument('input',  type=str, nargs='+', help='Path to the input image, can be a folder for the specific format(nii.gz)')
     parser.add_argument('-o', '--output', default=None, help='File path for output segmentation, default: the directory of input files')
     parser.add_argument('-g', '--gpu', action='store_true', help='Using GPU')
-    parser.add_argument('-r', '--report', action='store_true', help='Produce additional reports')
     parser.add_argument('--model', default=None, type=str,
                         help='Specifies the modelname')
 
@@ -82,7 +67,6 @@ def run(argstring, input, output=None, model=None):
     args = Namespace()
 
     args.gpu = 'g' in argstring
-    args.report = 'r' in argstring
     if not isinstance(input, list):
         input = [input]
     args.input = input
@@ -124,9 +108,6 @@ def run_args(args):
         mask_pred = lib_hx.post(mask_pred)
         output_file = write_file(
              f, output_dir, mask_pred, postfix='hx')
-
-        if args.report:
-            result_dict['report'] = get_report(f, output_file)
 
         result_dict['input'] = f
         result_dict['output'] = output_file
