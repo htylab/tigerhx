@@ -22,7 +22,10 @@ print(application_path)
 
 model_path = join(application_path, 'models')
 output_path = join(application_path, 'output')
+sample_path = join(application_path, 'sample')
 os.makedirs(model_path, exist_ok=True)
+os.makedirs(output_path, exist_ok=True)
+os.makedirs(sample_path, exist_ok=True)
 
 model_server = 'https://github.com/htylab/tigerhx/releases/download/modelhub/'
 
@@ -30,7 +33,7 @@ default_models = ['cine4d_v0001_xyz_mms12.onnx',
                   'cine4d_v0002_xyz_mms12acdc.onnx',
                   'cine4d_v0003_xy_mms12acdc.onnx']
 
-os.makedirs(output_path, exist_ok=True)
+
 
 for m0 in default_models:
 
