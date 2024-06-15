@@ -15,6 +15,9 @@ if getattr(sys, 'frozen', False):
 elif __file__:
     application_path = os.path.dirname(os.path.abspath(__file__))
 
+
+print(application_path)
+
 model_path = join(application_path, 'models')
 output_path = join(application_path, 'output')
 
