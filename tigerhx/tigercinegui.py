@@ -117,6 +117,7 @@ def process_files_multithreaded(files, slice_select, model_ff):
         dict['model'] = basename(model_ff)
         savemat(f'./output/{name}_pred_{onnx_version}.mat', dict)
         log_message(log_box, f'{num + 1}/{len(files)}: {basename(file)} finished ......')
+        #root.after(0, update_mat_listbox)
 
     root.after(0, lambda: progress_bar.pack_forget())
     root.after(0, update_mat_listbox)
