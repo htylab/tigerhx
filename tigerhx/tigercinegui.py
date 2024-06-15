@@ -113,7 +113,7 @@ def process_files_multithreaded(files, slice_select, model_ff):
         
         dict['model'] = basename(model_ff)
         savemat(f'./output/{name}_pred_{onnx_version}.mat', dict)
-        log_message(log_box, f'{num}/{len(files)}: {basename(file)} finished ......')
+        log_message(log_box, f'{num + 1}/{len(files)}: {basename(file)} finished ......')
 
     root.after(0, lambda: progress_bar.pack_forget())
     root.after(0, update_mat_listbox)
@@ -278,6 +278,9 @@ log_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 log_scrollbar = tk.Scrollbar(log_frame, orient=tk.VERTICAL, command=log_box.yview)
 log_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 log_box.config(yscrollcommand=log_scrollbar.set)
+
+
+
 
 # Create a progress bar
 progress_bar = ttk.Progressbar(frame, mode='determinate')
