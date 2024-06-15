@@ -36,7 +36,15 @@ for m0 in default_models:
 
     model_file = join(model_path, m0)
 
-    if not isfile(model_file):       
+    if not isfile(model_file):   
+
+        print(f'Downloading model files....')
+        model_url = model_server + m0
+        print(model_url, model_file)
+        lib_tool.download(model_url, model_file)
+        download_ok = True
+        print('Download finished...')
+        
 
         try:
             print(f'Downloading model files....')
