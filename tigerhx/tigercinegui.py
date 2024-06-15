@@ -83,7 +83,7 @@ def process_files_multithreaded(files, slice_select, model_ff):
 
         if len(img.shape) == 3:
             img = img[..., None]
-        log_message(log_box, f'{num}/{len(files)}: Predicting {basename(file)} ......')
+        log_message(log_box, f'{num + 1}/{len(files)}: Predicting {basename(file)} ......')
         emp = predict_cine4d(name, img, model_ff, progress_bar, root)
         
         log_message(log_box, f'Selected slice for apex:  {slice_select[num]}/{img.shape[2] - 1}')
