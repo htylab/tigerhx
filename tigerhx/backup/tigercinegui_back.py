@@ -57,14 +57,21 @@ for m0 in default_models:
 log_box = None
 root = None
 progress_bar = None
+progress_window = None
 
 def on_go():
-    global progress_bar
+    global progress_bar, progress_window
     selected_model = combo.get()
     if selected_model:
         model_ff = os.path.join(model_path, selected_model)
-        log_message(log_box, "Processing started...")
+        progress_window = tk.Toplevel(root)
+        progress_window.title("Processing...")
+        progress_label = tk.Label(progress_window, text="Processing...")
+        progress_label.pack(padx=10, pady=10)
+        progress_bar = ttk.Progressbar(progress_window, mode='determinate')
         progress_bar.pack(padx=10, pady=10, fill=tk.X)
+        progress_window.lift(root)  # Bring progress window to the foreground
+        progress_window.grab_set()  # Make progress window modal
         root.update()  # Ensure the main window stays updated
 
         files, slice_select = run_program_gui_interaction(model_ff, log_box, root)
@@ -74,6 +81,7 @@ def on_go():
         log_message(log_box, "No Selection: Please select a model from the list.")
 
 def process_files_multithreaded(files, slice_select, model_ff):
+    global progress_window
     onnx_version = basename(model_ff).split('_')[1]
     for num, file in enumerate(files):
         name = file.split('\\')[-1].split('.nii')[0]
@@ -91,9 +99,6 @@ def process_files_multithreaded(files, slice_select, model_ff):
 
         LVM = emp * 0
         nseg = 6
-        progress_bar['value'] = 0  # Reset progress bar for inner loop
-        progress_bar['maximum'] = LVM.shape[2]
-
         for i in range(LVM.shape[2]):
             if i == slice_select[num]:
                 nseg = 4
@@ -103,10 +108,6 @@ def process_files_multithreaded(files, slice_select, model_ff):
                 else:
                     LVM[..., i, j] = (emp[..., i, j] == 2) * 1
 
-            # Update the progress bar for the inner loop
-            progress_bar['value'] = i + 1
-            root.update_idletasks()  # Ensure the GUI updates
-
         dict = {'input': img_ori, 
                  'LV': (emp == 1) * 1, 'LVM': LVM, 'RV': (emp == 3) * 1,
                   'Seg': emp, 'voxel_size': np.array(voxel_size)}
@@ -115,7 +116,7 @@ def process_files_multithreaded(files, slice_select, model_ff):
         savemat(f'./output/{name}_pred_{onnx_version}.mat', dict)
         log_message(log_box, f'{num}/{len(files)}: {basename(file)} finished ......')
 
-    root.after(0, lambda: progress_bar.pack_forget())
+    root.after(0, progress_window.destroy)
     root.after(0, update_mat_listbox)
 
 global seg
@@ -278,10 +279,6 @@ log_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 log_scrollbar = tk.Scrollbar(log_frame, orient=tk.VERTICAL, command=log_box.yview)
 log_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 log_box.config(yscrollcommand=log_scrollbar.set)
-
-# Create a progress bar
-progress_bar = ttk.Progressbar(frame, mode='determinate')
-# Don't pack the progress bar yet, only when needed
 
 # Create a frame for the canvas and slider
 canvas_slider_frame = tk.Frame(root)
