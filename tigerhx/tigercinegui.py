@@ -5,7 +5,7 @@ import sys
 import threading
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from tool import *
+from guitool import *
 from os.path import join
 from skimage.transform import resize
 
