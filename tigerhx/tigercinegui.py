@@ -9,6 +9,7 @@ from guitool import *
 from os.path import join, isfile
 from skimage.transform import resize
 from tigerhx import lib_tool
+import glob
 
 # determine if application is a script file or frozen exe
 if getattr(sys, 'frozen', False):
@@ -79,8 +80,9 @@ def on_go():
     else:
         log_message(log_box, "No Selection: Please select a model from the list.")
 
-def process_files_multithreaded(files, slice_select, model_path):
+def process_files_multithreaded(files, slice_select, model_ff):
     global progress_window
+    onnx_version = basename(model_ff).split('_')[1]
     for num, file in enumerate(files):
         name = file.split('\\')[-1].split('.nii')[0]
         img_ori, affine, header = load_nii(file)
@@ -89,9 +91,11 @@ def process_files_multithreaded(files, slice_select, model_path):
 
         if len(img.shape) == 3:
             img = img[..., None]
-
-        emp = predict_cine4d(name, img, model_path, progress_bar, root)
-        log_message(log_box, f'{name} slice select {slice_select[num]}/{img.shape[2] - 1}')
+        log_message(log_box, f'{num}/{len(files)}: Predicting {basename(file)} ......')
+        emp = predict_cine4d(name, img, model_ff, progress_bar, root)
+        
+        log_message(log_box, f'Selected slice for apex:  {slice_select[num]}/{img.shape[2] - 1}')
+        log_message(log_box, f'Creating AHA segments.........')
 
         LVM = emp * 0
         nseg = 6
@@ -104,13 +108,20 @@ def process_files_multithreaded(files, slice_select, model_path):
                 else:
                     LVM[..., i, j] = (emp[..., i, j] == 2) * 1
 
-        dict = {"input": img_ori, 'LV': (emp == 1) * 1, 'LVM': LVM, 'RV': (emp == 3) * 1, 'Seg': emp}
-        savemat(f'./output/{name}_pred.mat', dict)
+        dict = {'input': img_ori, 
+                 'LV': (emp == 1) * 1, 'LVM': LVM, 'RV': (emp == 3) * 1,
+                  'Seg': emp, 'voxel_size': np.array(voxel_size)}
+        
+        dict['model'] = basename(model_ff)
+        savemat(f'./output/{name}_pred_{onnx_version}.mat', dict)
+        log_message(log_box, f'{num}/{len(files)}: {basename(file)} finished ......')
 
     root.after(0, progress_window.destroy)
     root.after(0, update_mat_listbox)
 
+global seg
 def on_mat_select(event):
+    global seg
     widget = event.widget
     selection = widget.curselection()
     if selection:
@@ -127,6 +138,10 @@ def on_mat_select(event):
                     update_time_slider(seg)  # Adapt the range of the time points
                 else:
                     log_message(log_box, f"'Seg' not found in {selected_mat}")
+                
+                if 'model' in data:
+                    model_name = data['model'][0] #from .mat file , the string stored into a cell array
+                    log_message(log_box, f"Predicted using {model_name}")
             except Exception as e:
                 log_message(log_box, f"An error occurred: {e}")
 
@@ -184,15 +199,8 @@ def show_montage(emp, time_frame=0):
     canvas.draw()
 
 def update_montage(time_frame):
-    selection = mat_listbox.curselection()
-    if selection:
-        selected_mat = mat_listbox.get(selection[0])
-        if selected_mat:
-            mat_path = os.path.join(output_path, selected_mat)
-            data = loadmat(mat_path)
-            if 'Seg' in data:
-                seg = data['Seg']
-                show_montage(seg, time_frame)
+    global seg
+    show_montage(seg, time_frame)
 
 def update_time_slider(emp):
     max_time_frame = emp.shape[3] - 1  # Get the maximum time frame
@@ -210,9 +218,20 @@ def on_closing():
     root.destroy()
     sys.exit()  # Ensure the program ends
 
+# Function to list sample files and print them to the log_box
+def list_and_log_sample_files(sample_dir):
+    sample_files = [f for f in glob.glob(join(sample_dir, '*.nii*'))]
+    log_message(log_box, "Sample Files:")
+    if len(sample_files) > 0:
+        log_message(log_box, f'Found samples: {len(sample_files) }')
+    count = 0
+    for f in sample_files:
+        count += 1
+        log_message(log_box, f'{count}: {f}')
+        
 # Create the main window
 root = tk.Tk()
-root.title("ONNX Model Selector")
+root.title("TigerHx GUI")
 
 # Set default font size
 default_font = ("Arial", 12)
@@ -238,15 +257,18 @@ frame.pack(padx=10, pady=10, side=tk.LEFT, fill=tk.Y)
 label = tk.Label(frame, text="Please select a segmentation model")
 label.pack(pady=5)
 
+# Create a frame for the combo box and "Go" button
+combo_frame = tk.Frame(frame)
+combo_frame.pack(pady=5)
+
 # Create a combo box to display the ONNX files
-combo = ttk.Combobox(frame, values=list_onnx_files(model_path))
-combo.pack(pady=5)
+combo = ttk.Combobox(combo_frame, values=list_onnx_files(model_path), width=30)  # Adjust the width as needed
+combo.pack(side=tk.LEFT, padx=5)
 combo.current(0)  # Select the first ONNX file by default
 
 # Create a "Go" button
-go_button = tk.Button(frame, text="Go", command=on_go)
-go_button.pack(pady=5)
-
+go_button = tk.Button(combo_frame, text="Go", command=on_go)
+go_button.pack(side=tk.LEFT, padx=5)
 # Create a log box to display messages
 log_frame = tk.Frame(frame)
 log_frame.pack(padx=10, pady=10)
@@ -293,6 +315,8 @@ mat_listbox.config(yscrollcommand=mat_scrollbar.set)
 
 # Initial update of the .mat listbox
 update_mat_listbox()
+
+list_and_log_sample_files('./sample')
 
 # Run the application
 root.mainloop()

@@ -10,13 +10,14 @@ import onnxruntime
 from tkinter import simpledialog
 import tkinter as tk
 
+
 nib.Nifti1Header.quaternion_threshold = -100
 
 def list_onnx_files(directory):
     return [f for f in os.listdir(directory) if f.endswith('.onnx')]
 
-def list_mat_files(directory):
-    return [f for f in os.listdir(directory) if f.endswith('_pred.mat')]
+def list_mat_files(mat_dir):
+    return [basename(f) for f in glob(join(mat_dir, '*pred*.mat'))]
 
 def log_message(log_box, message):
     log_box.insert(tk.END, message + '\n')
@@ -144,7 +145,7 @@ def run_program_gui_interaction(model_path, log_box, root):
         root.lift()    # Keep the main window behind the dialog
         while aha4_start < 0 or aha4_start > (img.shape[2] - 1):
             try:
-                msg = f'For {file}, please tell me the first slice of apex 0~{img.shape[2] - 1}'
+                msg = f'   For {basename(file)}, please tell me the first slice of apex 0~{img.shape[2] - 1}   '
                 aha4_start = simpledialog.askinteger("Input", msg, minvalue=0, maxvalue=img.shape[2] - 1, parent=root)
                 if aha4_start is None:
                     aha4_start = -1
