@@ -26,10 +26,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.7
-      uses: actions/setup-python@v3
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
       with:
-        python-version: "3.7"
+        python-version: "3.9"
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip        
@@ -42,7 +42,7 @@ jobs:
         #pyinstaller -c –-paths ./tigerhx --icon=./tigerhx/exe/${{ matrix.py }}/ico.ico --add-data "./tigerhx/exe/onnxruntime_providers_shared.dll;onnxruntime/capi" -F ./tigerhx/${{ matrix.py }}.py
         pyinstaller -c -p ./tigerhx --icon=./tigerhx/exe/ico.ico --add-data "./tigerhx/exe/onnxruntime_providers_shared.dll;onnxruntime/capi" -F ./tigerhx/${{ matrix.py }}.py
     - name: Run Pyinstaller  2
-      if: matrix.os == 'ubuntu-18.04'
+      if: matrix.os == 'ubuntu-20.04'
       run: |
         pyinstaller -c -p ./tigerhx --icon=./tigerhx/exe/ico.ico --add-data ./tigerhx/exe/libonnxruntime_providers_shared.so:onnxruntime/capi -F ./tigerhx/${{ matrix.py }}.py
     - name: Run Pyinstaller 3
@@ -51,7 +51,40 @@ jobs:
         pyinstaller -c -p ./tigerhx --icon=./tigerhx/exe/ico.ico --add-data ./tigerhx/exe/libonnxruntime_providers_shared.so:onnxruntime/capi -F ./tigerhx/${{ matrix.py }}.py
 
         
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.py }}-${{ matrix.os }}
+        path: dist/*
+  build:
+
+    #runs-on: ubuntu-18.04
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ['windows-latest']
+        #os: ['windows-latest']
+        py: ['tigercinegui']
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.9"
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip        
+        pip install .
+        pip install pyinstaller onnxruntime scikit-image matplotlib
+    - name: Run Pyinstaller 1
+      if: matrix.os == 'windows-latest'
+      run: |
+
+        pyinstaller -c -p ./tigerhx --add-data "./tigerhx/exe/onnxruntime_providers_shared.dll;onnxruntime/capi" -F ./tigerhx/${{ matrix.py }}.py
+
+        
+    - uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.py }}-${{ matrix.os }}
         path: dist/*

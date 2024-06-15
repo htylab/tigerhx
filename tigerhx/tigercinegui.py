@@ -9,9 +9,16 @@ from tool import *
 from os.path import join
 from skimage.transform import resize
 
-application_path = os.path.dirname(os.path.abspath(__file__))
+# determine if application is a script file or frozen exe
+if getattr(sys, 'frozen', False):
+    application_path = os.path.dirname(sys.executable)
+elif __file__:
+    application_path = os.path.dirname(os.path.abspath(__file__))
+
 model_path = join(application_path, 'models')
 output_path = join(application_path, 'output')
+
+os.makedirs(output_path, exist_ok=True)
 
 # Global variables
 log_box = None
