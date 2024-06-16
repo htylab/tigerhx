@@ -3,13 +3,13 @@
 import os
 import numpy as np
 from glob import glob
-from os.path import basename, join
+from os.path import basename, join, isfile
 from scipy.io import savemat, loadmat
 import nibabel as nib
 import onnxruntime
 from tkinter import simpledialog
 import tkinter as tk
-
+from tigerhx import lib_tool
 
 nib.Nifti1Header.quaternion_threshold = -100
 
@@ -154,3 +154,32 @@ def run_program_gui_interaction(model_path, log_box, root):
         slice_select.append(aha4_start)
     return files, slice_select
 
+def init_app(application_path):
+    model_path = join(application_path, 'models')
+    output_path = join(application_path, 'output')
+    sample_path = join(application_path, 'sample')
+    os.makedirs(model_path, exist_ok=True)
+    os.makedirs(output_path, exist_ok=True)
+    os.makedirs(sample_path, exist_ok=True)
+
+    model_server = 'https://github.com/htylab/tigerhx/releases/download/modelhub/'
+
+    default_models = ['cine4d_v0001_xyz_mms12.onnx',
+                    'cine4d_v0002_xyz_mms12acdc.onnx',
+                    'cine4d_v0003_xy_mms12acdc.onnx']
+
+    for m0 in default_models:
+        model_file = join(model_path, m0)
+        if not isfile(model_file):
+            try:
+                print(f'Downloading model files....')
+                model_url = model_server + m0
+                print(model_url, model_file)
+                lib_tool.download(model_url, model_file)
+                download_ok = True
+                print('Download finished...')
+            except:
+                download_ok = False
+
+            if not download_ok:
+                raise ValueError('Server error. Please check the model name or internet connection.')
