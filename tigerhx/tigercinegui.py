@@ -82,12 +82,20 @@ def process_files_multithreaded(files, slice_select, model_ff):
             progress_bar['value'] = i + 1
             root.update_idletasks()  # Ensure the GUI updates
 
+        Seg_AHA = emp.copy()
+        Seg_AHA[LVM > 0] = LVM[LVM > 0] + 7
+        Seg_AHA = Seg_AHA.astype(int)
+        LV = (emp == 1).astype(int)
+        RV = (emp == 3).astype(int)
+        LVM = LVM.astype(int)
+        Seg = emp.astype(int)
+
         dict = {'input': img_ori, 
-                 'LV': (emp == 1) * 1, 'LVM': LVM, 'RV': (emp == 3) * 1,
-                  'Seg': emp, 'voxel_size': np.array(voxel_size)}
+                 'LV': LV , 'LVM': LVM, 'RV': RV ,
+                  'Seg': Seg, 'Seg_AHA': Seg_AHA, 'voxel_size': np.array(voxel_size)}
         
         dict['model'] = basename(model_ff)
-        savemat(f'./output/{name}_pred_{onnx_version}.mat', dict)
+        savemat(f'./output/{name}_pred_{onnx_version}.mat', dict, do_compression=True)
         log_message(log_box, f'{num + 1}/{len(files)}: {basename(file)} finished ......')
         root.after(0, update_mat_listbox)
 
@@ -127,13 +135,15 @@ def on_mat_select(event):
 
 def on_display_type_change(event):
     global seg, data
-    if seg is not None and data is not None:
-        selected_type = display_type_combo.get()
-        if selected_type in data:
-            seg = data[selected_type]
-            show_montage(seg)
-            update_time_slider(seg)  # Adapt the range of the time points
-
+    try:
+        if seg is not None and data is not None:
+            selected_type = display_type_combo.get()
+            if selected_type in data:
+                seg = data[selected_type]
+                show_montage(seg)
+                update_time_slider(seg)  # Adapt the range of the time points
+    except:
+        log_message(log_box, f"Select a result file....")
 def show_montage(emp, time_frame=0):
     global fig, ax, canvas, im
     plt.close('all')  # Close all previous figures
@@ -294,11 +304,14 @@ display_type_label = tk.Label(display_type_frame, text="Figure type")
 display_type_label.pack(side=tk.LEFT)
 
 # Create a combo box for selecting display type
-display_types = ['Seg', 'input', 'LV', 'LVM', 'RV']
+display_types = ['Seg', 'Seg_AHA', 'input', 'LV', 'LVM', 'RV']
 display_type_combo = ttk.Combobox(display_type_frame, values=display_types, width=10)
 display_type_combo.pack(side=tk.LEFT, padx=5)
 display_type_combo.current(0)  # Set default display type to 'Seg'
 display_type_combo.bind("<<ComboboxSelected>>", on_display_type_change)
+
+refresh_button = tk.Button(display_type_frame, text="Refresh Preds", command=update_mat_listbox)
+refresh_button.pack(side=tk.LEFT, padx=5)
 
 # Create a listbox for the .mat files
 mat_listbox = tk.Listbox(listbox_frame, width=40, height=10)
