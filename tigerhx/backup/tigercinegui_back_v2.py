@@ -28,7 +28,6 @@ log_box = None
 root = None
 progress_bar = None
 display_type_combo = None
-colormap_combo = None
 data = None  # Ensure data is globally accessible
 fig, ax = None, None
 canvas = None
@@ -93,13 +92,13 @@ def process_files_multithreaded(files, slice_select, model_ff):
 
         mask = np.max(Seg, axis=(2, 3))
         xx, yy = np.nonzero(mask)
-        x0, x1 = max(0, xx.min() - 10), min(mask.shape[0], xx.max() + 10)
-        y0, y1 = max(0, yy.min() - 10), min(mask.shape[1], yy.max() + 10)
+        x0, x1 = max(0, xx.min() -10), min(mask.shape[0], xx.max() + 10)
+        y0, y1 = max(0, yy.min() -10), min(mask.shape[1], yy.max() + 10)
 
         dict = {'input': img_ori, 'Seg': Seg, 'SegAHA': Seg_AHA,
                 'input_crop': img_ori[x0:x1, y0:y1], 'Seg_crop': Seg[x0:x1, y0:y1],
-                'SegAHA_crop': Seg_AHA[x0:x1, y0:y1],
-                'LV': LV, 'LVM': LVM, 'RV': RV,
+                 'SegAHA_crop': Seg_AHA[x0:x1, y0:y1],
+                'LV': LV , 'LVM': LVM, 'RV': RV,
                 'voxel_size': np.array(voxel_size)}
         
         dict['model'] = basename(model_ff)
@@ -107,7 +106,8 @@ def process_files_multithreaded(files, slice_select, model_ff):
         log_message(log_box, f'{num + 1}/{len(files)}: {basename(file)} finished ......')
         root.after(0, update_mat_listbox)
 
-    # root.after(0, lambda: progress_bar.pack_forget())
+
+    #root.after(0, lambda: progress_bar.pack_forget())
     log_message(log_box, f'All job finished.........')
     progress_bar['value'] = 0
     root.update_idletasks()  # Ensure the GUI updates
@@ -135,7 +135,7 @@ def on_mat_select(event):
                     log_message(log_box, f"'{selected_type}' not found in {selected_mat}")
                 
                 if 'model' in data:
-                    model_name = data['model'][0]  # from .mat file, the string stored into a cell array
+                    model_name = data['model'][0] #from .mat file , the string stored into a cell array
                     log_message(log_box, f"Predicted using {model_name}")
             except Exception as e:
                 log_message(log_box, f"An error occurred: {e}")
@@ -151,11 +151,6 @@ def on_display_type_change(event):
                 update_time_slider(seg)  # Adapt the range of the time points
     except:
         log_message(log_box, f"Select a result file....")
-
-def on_colormap_change(event):
-    if seg is not None:
-        show_montage(seg)  # Redraw the figure with the selected colormap
-
 def show_montage(emp, time_frame=0):
     global fig, ax, canvas, im
     plt.close('all')  # Close all previous figures
@@ -210,17 +205,10 @@ def show_montage(emp, time_frame=0):
     # Resize the mosaic to 400x600
     mosaic_resized = resize(padded_mosaic, (600, 400), anti_aliasing=True)
 
-    colormap = colormap_combo.get()  # Get the selected colormap
-    if colormap == 'gray':
-        cmap = 'gray'
-    elif colormap == 'viridis':
-        cmap = 'viridis'  # Replace 'vivid' with an actual matplotlib colormap, like 'viridis'
-
     if im is None:
-        im = ax.imshow(mosaic_resized, cmap=cmap)
+        im = ax.imshow(mosaic_resized)
     else:
         im.set_data(mosaic_resized)
-        im.set_cmap(cmap)
         im.set_clim(vmin=emp.min(), vmax=emp.max())
 
     canvas = FigureCanvasTkAgg(fig, master=canvas_frame)
@@ -331,38 +319,13 @@ display_type_combo.pack(side=tk.LEFT, padx=5)
 display_type_combo.current(0)  # Set default display type to 'Seg'
 display_type_combo.bind("<<ComboboxSelected>>", on_display_type_change)
 
-# Create a label for the colormap combo box
-colormap_label = tk.Label(display_type_frame, text="Colormap")
-colormap_label.pack(side=tk.LEFT, padx=5)
-
-# Create a combo box for selecting colormap
-colormap_combo = ttk.Combobox(display_type_frame, values=['gray', 'viridis'], width=10)
-colormap_combo.pack(side=tk.LEFT, padx=5)
-colormap_combo.current(0)  # Set default colormap to 'gray'
-colormap_combo.bind("<<ComboboxSelected>>", on_colormap_change)
+refresh_button = tk.Button(display_type_frame, text="Refresh Preds", command=update_mat_listbox)
+refresh_button.pack(side=tk.LEFT, padx=5)
 
 # Create a listbox for the .mat files
-#mat_listbox = tk.Listbox(listbox_frame, width=40, height=10)
-#mat_listbox.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-#mat_listbox.bind('<<ListboxSelect>>', on_mat_select)
-
-
-
-# Create a frame for the listbox and display type combo box
-listbox_frame = tk.Frame(frame)
-listbox_frame.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
-
-# Create a scrollbar for the listbox
-listbox_scrollbar = tk.Scrollbar(listbox_frame, orient=tk.VERTICAL)
-listbox_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-# Create a listbox for the .mat files
-mat_listbox = tk.Listbox(listbox_frame, width=40, height=10, yscrollcommand=listbox_scrollbar.set)
-mat_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+mat_listbox = tk.Listbox(listbox_frame, width=40, height=10)
+mat_listbox.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 mat_listbox.bind('<<ListboxSelect>>', on_mat_select)
-
-# Configure the scrollbar to work with the listbox
-listbox_scrollbar.config(command=mat_listbox.yview)
 
 # Create a progress bar
 progress_bar = ttk.Progressbar(frame, mode='determinate')
@@ -392,3 +355,4 @@ list_and_log_sample_files('./sample')
 
 # Run the application
 root.mainloop()
+

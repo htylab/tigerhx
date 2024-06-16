@@ -3,7 +3,6 @@ __pycache__/
 models/
 output/
 sample/
-backup/
 *.py[cod]
 *$py.class
 .ipynb_checkpoints/
