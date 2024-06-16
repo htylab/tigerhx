@@ -166,7 +166,8 @@ def init_app(application_path):
 
     default_models = ['cine4d_v0001_xyz_mms12.onnx',
                     'cine4d_v0002_xyz_mms12acdc.onnx',
-                    'cine4d_v0003_xy_mms12acdc.onnx']
+                    'cine4d_v0003_xy_mms12acdc.onnx',
+                    'cine4d_v0004_xy_retrain.onnx']
 
     for m0 in default_models:
         model_file = join(model_path, m0)
