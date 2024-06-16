@@ -192,7 +192,7 @@ def show_montage(emp, time_frame=0):
         im = ax.imshow(mosaic_resized)
     else:
         im.set_data(mosaic_resized)
-        im.set_clim(vmin=mosaic_resized.min(), vmax=mosaic_resized.max())
+        im.set_clim(vmin=emp.min(), vmax=emp.max())
 
     canvas = FigureCanvasTkAgg(fig, master=canvas_frame)
     canvas.get_tk_widget().pack(fill=tk.BOTH, expand=False)
