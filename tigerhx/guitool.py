@@ -177,48 +177,10 @@ def run_program_gui_interaction(selected_file, log_box, root):
         log_message(log_box, "Unsupported file type selected.")
         return None, None, None
 
-def run_program_gui_interactioX(model_path, log_box, root):
-    files = glob('./sample/*.nii*')
-    slice_select = []
-
-    for file in files:
-        name = file.split('\\')[-1].split('.nii')[0]
-        img_ori, affine, header = load_nii(file)
-        img = img_ori.copy()
-        voxel_size = header.get_zooms()
-        aha4_start = -1
-        log_message(log_box, f"Processing {file}")
-        root.update()  # Ensure the main window stays updated
-        root.lift()    # Keep the main window behind the dialog
-        while aha4_start < 0 or aha4_start > (img.shape[2] - 1):
-            try:
-                msg = f'   For {basename(file)}, please tell me the first slice of apex 0~{img.shape[2] - 1}   '
-                aha4_start = simpledialog.askinteger("Input", msg, minvalue=0, maxvalue=img.shape[2] - 1, parent=root)
-                if aha4_start is None:
-                    aha4_start = -1
-            except:
-                aha4_start = -1
-        slice_select.append(aha4_start)
-    csvfile = './sample/files.csv'
-    common_path = None
-    if isfile(csvfile):        
-        csv_data = pd.read_csv(csvfile)
-        filenames = csv_data['Filename'].tolist()
-        apex_list = csv_data['Apex'].tolist()
-        files += filenames
-        slice_select += apex_list
-        common_path = os.path.commonpath(filenames)
-
-
-    log_message(log_box, f"Found {len(files)} for processing....")
-
-    
-    return files, slice_select, common_path
-
 def init_app(application_path):
     model_path = join(application_path, 'models')
     output_path = join(application_path, 'output')
-    sample_path = join(application_path, 'sample')
+    sample_path = join(application_path, 'csv')
     os.makedirs(model_path, exist_ok=True)
     os.makedirs(output_path, exist_ok=True)
     os.makedirs(sample_path, exist_ok=True)

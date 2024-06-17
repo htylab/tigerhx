@@ -65,6 +65,17 @@ def on_go():
         log_message(log_box, "No Selection: Please select a model from the list.")
 
 def process_files_multithreaded(files, slice_select, model_ff, common_path, stop_event):
+    from scipy.ndimage import zoom
+    def resample(data, original_spacing, new_spacing, order=3):
+        zoom_factors = [original_spacing[i] / new_spacing[i] for i in range(len(original_spacing))]
+        resampled_data = zoom(data, zoom_factors, order=order)
+        return resampled_data, zoom_factors
+
+    def resample_back(data, zoom_factors, order=0):
+        reverse_zoom_factors = [1 / zf for zf in zoom_factors]
+        resampled_data = zoom(data, reverse_zoom_factors, order=order)
+        return resampled_data
+
     onnx_version = basename(model_ff).split('_')[1]
     stopped = False
     for num, file in enumerate(files):
@@ -82,8 +93,22 @@ def process_files_multithreaded(files, slice_select, model_ff, common_path, stop
 
         if len(img.shape) == 3:
             img = img[..., None]
+            voxel_size = list(voxel_size) + [1]
         log_message(log_box, f'{num + 1}/{len(files)}: Predicting {basename(file)} ......')
-        emp = predict_cine4d(img, model_ff, progress_bar, root, stop_event)
+
+
+        # 調整解析度至(1, 1, original_spacing[2], original_spacing[3])
+        new_spacing = (1, 1, voxel_size[2], voxel_size[3])
+        resampled_img, zoom_factors = resample(img, voxel_size, new_spacing, order=3)
+
+        # 進行預測
+        mask = predict_cine4d(resampled_img, model_ff, progress_bar, root, stop_event)
+
+        # 將mask恢復到原始解析度
+        emp = resample_back(mask, zoom_factors, order=0)
+
+
+        #original emp = predict_cine4d(img, model_ff, progress_bar, root, stop_event)
 
         if stop_event.is_set():
             stopped = True
@@ -138,15 +163,6 @@ def process_files_multithreaded(files, slice_select, model_ff, common_path, stop
         savemat(f'./output/{name}_pred_{onnx_version}.mat', dict, do_compression=True)
         log_message(log_box, f'{num + 1}/{len(files)}: {basename(file)} finished ......')
         root.after(0, update_mat_listbox)
-
-        try:
-            selected_type = display_type_combo.get()
-            if selected_type in data:
-                seg = dict[selected_type]
-                show_montage(seg)
-                update_time_slider(seg)  # Adapt the range of the time points
-        except:
-            pass
 
     if stopped:
         log_message(log_box, f'Jobs stopped.........')
@@ -293,30 +309,67 @@ def on_closing():
 
 def select_folder():
 
+    def get_nii_files(folder_selected, keyword):
+        nii_files = []
+        for root, _, files in os.walk(folder_selected):
+            nii_files.extend(glob.glob(os.path.join(root, '*.nii*')))
+
+        if keyword == '':
+            ffs = nii_files
+        else:
+            include_list, exclude_list = extract_keywords(keyword)
+
+            ffs = []
+            for ff in nii_files:
+                got_file = False
+                for keyword in include_list:
+                    if keyword in ff:
+                        got_file = True
+                        break
+                for keyword in exclude_list:
+                    if keyword in ff:
+                        got_file = False
+                        break
+                if got_file: ffs.append(ff)
+
+        return ffs
+
+    def extract_keywords(string):
+        include = []
+        exclude = []
+        string = string.replace(' ', '')
+        words = string.split(',')
+        for word in words:
+            word = word.strip()
+            if word.startswith('+'):
+                include.append(word[1:])
+            elif word.startswith('-'):
+                exclude.append(word[1:])
+        
+        return include, exclude
 
     folder_selected = filedialog.askdirectory()
     keyword = simpledialog.askstring("Keyword Input",
-                                     "Please specify the keyword: * or CINE4D to search.",
-                                     initialvalue="CINE4D")
-    if not keyword or keyword == '*':
-        keyword = ''  # Default to '*' if no keyword is provided
+                                     "Keyword to include and then exclude. e.g., +CINE4D,-mask.",
+                                     initialvalue="+CINE4D,+ED.nii,-mask")
+    
 
-    if folder_selected:        
-        nii_files = glob.glob(os.path.join(folder_selected, f'*{keyword}*.nii*'))
-        nii_files += glob.glob(os.path.join(folder_selected, '*', f'*{keyword}*.nii*'))
-        nii_files += glob.glob(os.path.join(folder_selected, '*', '*', f'*{keyword}*.nii*'))
+    if not folder_selected: return 0
 
-        # Check if 'files.csv' exists and modify the filename if necessary
-        f_name = os.path.join(sample_path, 'files.csv')
-        if os.path.exists(f_name):
-            timestamp = time.strftime("%y%m%d_%H%M%S")
-            f_name = os.path.join(sample_path, f'files_{timestamp}.csv')
+    ffs = get_nii_files(folder_selected, keyword)      
+
+    # Check if 'files.csv' exists and modify the filename if necessary
+    log_message(log_box, f"Found {len(ffs)}.")
+    if len(ffs) > 0:
+        timestamp = time.strftime("%y%m%d_%H%M%S")
+        f_name = os.path.join(sample_path, f'files_{timestamp}.csv')
         
         with open(f_name, 'w') as f:
             f.write('Filename,Apex\n')
-            for ff in nii_files:
+            for ff in ffs:
                 f.write(ff + ',2\n')
-        log_message(log_box, f"Found {len(nii_files)}. Please edit {f_name} for segmentation.")
+        log_message(log_box, f"Please edit {f_name} for segmentation.")
+
 
 def stop_processing():
     log_message(log_box, "Processing stopped by user.")
@@ -379,7 +432,7 @@ stop_button.pack(side=tk.LEFT, padx=5)
 log_frame = tk.Frame(frame)
 log_frame.pack(padx=10, pady=10)
 
-log_box = tk.Text(log_frame, width=50, height=8, wrap=tk.WORD)
+log_box = tk.Text(log_frame, width=50, height=10, wrap=tk.WORD)
 log_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
 log_scrollbar = tk.Scrollbar(log_frame, orient=tk.VERTICAL, command=log_box.yview)
@@ -456,14 +509,14 @@ update_mat_listbox()
 welcome_msg = f'''\n* Step 1: Click GenCSV to search Cine NIFTI files.
 * Step 2: TigerHx will generate a CSV file in {sample_path}.
 * Step 3: Edit the CSV file and assign APEX numbers.
-* Step 4: Click 'Go' to start the automatic segmentation.
+* Step 4: Click 'RUN' to start the automatic segmentation.
 * Step 5: Click the prediction files to inspect the results.'''
 log_message(log_box, welcome_msg)
 
 welcome_msg = f'''\n* 1: 點選GenCSV去搜尋 Cine NIfTI 資料集
 * 2: TigerHx 將在 {sample_path} 生成一個 CSV 檔案
 * 3: 編輯 CSV 檔案並分配 APEX 編號
-* 4: 點擊 Go 以開始使用 TigerHx 進行自動心臟分割
+* 4: 點擊 RUN 開始使用 TigerHx 進行自動心臟分割
 * 5: 點擊預測檔案以檢查結果\n'''
 log_message(log_box, welcome_msg)
 

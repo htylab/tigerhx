@@ -1,8 +1,9 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 models/
-output/
+output*/
 sample/
+csv/
 *.py[cod]
 *$py.class
 .ipynb_checkpoints/
