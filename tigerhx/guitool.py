@@ -10,6 +10,7 @@ import onnxruntime
 from tkinter import simpledialog
 import tkinter as tk
 from tigerhx import lib_tool
+import pandas as pd
 
 nib.Nifti1Header.quaternion_threshold = -100
 
@@ -89,7 +90,7 @@ def get_ahaseg(mask, nseg=6):
     label_mask = AHA_sector * lvw
     return label_mask
 
-def predict_cine4d(input_file, img, model_ff, progress_bar=None, root=None):
+def predict_cine4d(img, model_ff, progress_bar, root, stop_event):
     xyzt_mode = basename(model_ff).split('_')[2]
     session = onnxruntime.InferenceSession(model_ff)
     data = img.copy()
@@ -115,6 +116,9 @@ def predict_cine4d(input_file, img, model_ff, progress_bar=None, root=None):
 
     mask_pred4d = data * 0
     for tti in range(data.shape[-1]):
+        if stop_event.is_set():
+            return 0
+
         image_raw = data[..., tti]
         image = image_raw[None, ...][None, ...]
         if np.max(image) == 0:
@@ -130,7 +134,50 @@ def predict_cine4d(input_file, img, model_ff, progress_bar=None, root=None):
     mask_pred4d = mask_pred4d.reshape((xx, yy, zz, tt))
     return mask_pred4d
 
-def run_program_gui_interaction(model_path, log_box, root):
+
+def run_program_gui_interaction(selected_file, log_box, root):
+
+    if selected_file.endswith(('.nii', '.nii.gz')):
+        # Process NIfTI files
+        files = [selected_file]
+        slice_select = []
+        aha4_start = -1
+        log_message(log_box, f"Processing {selected_file}")
+        root.update()  # Ensure the main window stays updated
+        root.lift()    # Keep the main window behind the dialog
+        img = nib.load(selected_file)
+        while aha4_start < 0 or aha4_start > (img.shape[2] - 1):
+            try:
+                msg = f'   Tell me the first slice of apex 0~{img.shape[2] - 1}   '
+                aha4_start = simpledialog.askinteger("Input", msg, minvalue=0, maxvalue=img.shape[2] - 1, parent=root)
+                if aha4_start is None:
+                    aha4_start = -1
+            except:
+                aha4_start = -1
+        slice_select.append(aha4_start)
+
+        return files, slice_select, None
+
+    elif selected_file.endswith('.csv'):
+        # Process CSV files
+        common_path = None
+        if isfile(selected_file):
+  
+            csv_data = pd.read_csv(selected_file)
+            files = csv_data['Filename'].tolist()
+            slice_select = csv_data['Apex'].tolist()
+
+
+            common_path = os.path.commonpath(files)
+
+        log_message(log_box, f"Found {len(files)} for processing....")
+        return files, slice_select, common_path
+
+    else:
+        log_message(log_box, "Unsupported file type selected.")
+        return None, None, None
+
+def run_program_gui_interactioX(model_path, log_box, root):
     files = glob('./sample/*.nii*')
     slice_select = []
 
@@ -152,7 +199,21 @@ def run_program_gui_interaction(model_path, log_box, root):
             except:
                 aha4_start = -1
         slice_select.append(aha4_start)
-    return files, slice_select
+    csvfile = './sample/files.csv'
+    common_path = None
+    if isfile(csvfile):        
+        csv_data = pd.read_csv(csvfile)
+        filenames = csv_data['Filename'].tolist()
+        apex_list = csv_data['Apex'].tolist()
+        files += filenames
+        slice_select += apex_list
+        common_path = os.path.commonpath(filenames)
+
+
+    log_message(log_box, f"Found {len(files)} for processing....")
+
+    
+    return files, slice_select, common_path
 
 def init_app(application_path):
     model_path = join(application_path, 'models')

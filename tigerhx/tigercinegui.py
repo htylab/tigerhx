@@ -1,8 +1,9 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog
 import os
 import sys
 import threading
+import time
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from guitool import *
@@ -20,7 +21,7 @@ elif __file__:
 
 model_path = join(application_path, 'models')
 output_path = join(application_path, 'output')
-sample_path = join(application_path, 'sample')
+sample_path = join(application_path, 'csv')
 init_app(application_path)
 
 # Global variables
@@ -33,9 +34,14 @@ data = None  # Ensure data is globally accessible
 fig, ax = None, None
 canvas = None
 im = None
+nii_files_listbox = None
+seg = None
+stop_event = threading.Event()
 
 def on_go():
-    global progress_bar
+    global progress_bar, stop_event
+    stop_event.clear()
+
     selected_model = combo.get()
     if selected_model:
         model_ff = os.path.join(model_path, selected_model)
@@ -43,16 +49,33 @@ def on_go():
         progress_bar.pack(padx=10, pady=10, fill=tk.X)
         root.update()  # Ensure the main window stays updated
 
-        files, slice_select = run_program_gui_interaction(model_ff, log_box, root)
+        # Introduce file selection dialog
+        filetypes = [("All supported files", "*.csv *.nii *.nii.gz"),
+                      ("CSV files", "*.csv"),
+                     ("NIfTI files", "*.nii *.nii.gz")]
+        default_dir = os.path.join(application_path, 'csv')
+        selected_file = filedialog.askopenfilename(initialdir=default_dir, filetypes=filetypes)
 
-        threading.Thread(target=process_files_multithreaded, args=(files, slice_select, model_ff)).start()
+
+        files, slice_select, common_path = run_program_gui_interaction(selected_file, log_box, root)
+
+        threading.Thread(target=process_files_multithreaded,
+                         args=(files, slice_select, model_ff, common_path, stop_event)).start()
     else:
         log_message(log_box, "No Selection: Please select a model from the list.")
 
-def process_files_multithreaded(files, slice_select, model_ff):
+def process_files_multithreaded(files, slice_select, model_ff, common_path, stop_event):
     onnx_version = basename(model_ff).split('_')[1]
+    stopped = False
     for num, file in enumerate(files):
-        name = file.split('\\')[-1].split('.nii')[0]
+        if stop_event.is_set():
+            stopped = True
+            break
+        if common_path is None:
+            name = basename(file)
+        else:
+            name  = os.path.relpath(file, common_path).replace(os.sep, '_')
+        name = name.split('.nii')[0]
         img_ori, affine, header = load_nii(file)
         img = img_ori.copy()
         voxel_size = header.get_zooms()
@@ -60,7 +83,11 @@ def process_files_multithreaded(files, slice_select, model_ff):
         if len(img.shape) == 3:
             img = img[..., None]
         log_message(log_box, f'{num + 1}/{len(files)}: Predicting {basename(file)} ......')
-        emp = predict_cine4d(name, img, model_ff, progress_bar, root)
+        emp = predict_cine4d(img, model_ff, progress_bar, root, stop_event)
+
+        if stop_event.is_set():
+            stopped = True
+            break
         
         log_message(log_box, f'Selected slice for apex:  {slice_select[num]}/{img.shape[2] - 1}')
         log_message(log_box, f'Creating AHA segments.........')
@@ -70,7 +97,12 @@ def process_files_multithreaded(files, slice_select, model_ff):
         progress_bar['value'] = 0  # Reset progress bar for inner loop
         progress_bar['maximum'] = LVM.shape[2]
 
+
+
         for i in range(LVM.shape[2]):
+            if stop_event.is_set():
+                stopped = True
+                break
             if i == slice_select[num]:
                 nseg = 4
             for j in range(LVM.shape[3]):
@@ -107,13 +139,24 @@ def process_files_multithreaded(files, slice_select, model_ff):
         log_message(log_box, f'{num + 1}/{len(files)}: {basename(file)} finished ......')
         root.after(0, update_mat_listbox)
 
-    # root.after(0, lambda: progress_bar.pack_forget())
-    log_message(log_box, f'All job finished.........')
+        try:
+            selected_type = display_type_combo.get()
+            if selected_type in data:
+                seg = dict[selected_type]
+                show_montage(seg)
+                update_time_slider(seg)  # Adapt the range of the time points
+        except:
+            pass
+
+    if stopped:
+        log_message(log_box, f'Jobs stopped.........')
+    else:
+        log_message(log_box, f'All job finished.........')
     progress_bar['value'] = 0
     root.update_idletasks()  # Ensure the GUI updates
     root.after(0, update_mat_listbox)
 
-global seg
+
 def on_mat_select(event):
     global seg, data
     widget = event.widget
@@ -248,24 +291,43 @@ def on_closing():
     root.destroy()
     sys.exit()  # Ensure the program ends
 
-# Function to list sample files and print them to the log_box
-def list_and_log_sample_files(sample_dir):
-    sample_files = [f for f in glob.glob(join(sample_dir, '*.nii*'))]
-    log_message(log_box, "Sample Files:")
-    if len(sample_files) > 0:
-        log_message(log_box, f'Found samples: {len(sample_files) }')
-    count = 0
-    for f in sample_files:
-        count += 1
-        log_message(log_box, f'{count}: {f}')
+def select_folder():
+
+
+    folder_selected = filedialog.askdirectory()
+    keyword = simpledialog.askstring("Keyword Input",
+                                     "Please specify the keyword: * or CINE4D to search.",
+                                     initialvalue="CINE4D")
+    if not keyword or keyword == '*':
+        keyword = ''  # Default to '*' if no keyword is provided
+
+    if folder_selected:        
+        nii_files = glob.glob(os.path.join(folder_selected, f'*{keyword}*.nii*'))
+        nii_files += glob.glob(os.path.join(folder_selected, '*', f'*{keyword}*.nii*'))
+        nii_files += glob.glob(os.path.join(folder_selected, '*', '*', f'*{keyword}*.nii*'))
+
+        # Check if 'files.csv' exists and modify the filename if necessary
+        f_name = os.path.join(sample_path, 'files.csv')
+        if os.path.exists(f_name):
+            timestamp = time.strftime("%y%m%d_%H%M%S")
+            f_name = os.path.join(sample_path, f'files_{timestamp}.csv')
         
+        with open(f_name, 'w') as f:
+            f.write('Filename,Apex\n')
+            for ff in nii_files:
+                f.write(ff + ',2\n')
+        log_message(log_box, f"Found {len(nii_files)}. Please edit {f_name} for segmentation.")
+
+def stop_processing():
+    log_message(log_box, "Processing stopped by user.")
+    stop_event.set()
+
 # Create the main window
 root = tk.Tk()
 root.title("TigerHx GUI")
 
 # Set default font size
-default_font = ("Arial", 11)
-
+default_font = ("Arial", 10)
 root.option_add("*Font", default_font)
 
 # Adjust the size of the main window
@@ -282,28 +344,42 @@ root.protocol("WM_DELETE_WINDOW", on_closing)
 frame = tk.Frame(root)
 frame.pack(padx=10, pady=10, side=tk.LEFT, fill=tk.Y)
 
-# Create a label for the combo box
-label = tk.Label(frame, text="Please select a segmentation model")
-label.pack(pady=5)
+
 
 # Create a frame for the combo box and "Go" button
 combo_frame = tk.Frame(frame)
 combo_frame.pack(pady=5)
 
+# Create a label for the combo box
+label = tk.Label(combo_frame, text="Model")
+label.pack(side=tk.LEFT, pady=5)
+
 # Create a combo box to display the ONNX files
-combo = ttk.Combobox(combo_frame, values=list_onnx_files(model_path), width=30)  # Adjust the width as needed
+combo = ttk.Combobox(combo_frame, values=list_onnx_files(model_path), width=30)
 combo.pack(side=tk.LEFT, padx=5)
 combo.current(0)  # Select the first ONNX file by default
 
+# Create a frame for the combo box and "Go" button
+button_frame = tk.Frame(frame)
+button_frame.pack(pady=5)
+
+# Create a button to select a folder
+select_folder_button = tk.Button(button_frame, text="GenCSV", command=select_folder)
+select_folder_button.pack(side=tk.LEFT, padx=5)
+
 # Create a "Go" button
-go_button = tk.Button(combo_frame, text="Go", command=on_go)
+go_button = tk.Button(button_frame, text="Select CSV or NII and RUN", command=on_go)
 go_button.pack(side=tk.LEFT, padx=5)
+
+# Create a "Stop" button
+stop_button = tk.Button(button_frame, text="Stop", command=stop_processing)
+stop_button.pack(side=tk.LEFT, padx=5)
 
 # Create a log box to display messages
 log_frame = tk.Frame(frame)
 log_frame.pack(padx=10, pady=10)
 
-log_box = tk.Text(log_frame, width=50, height=10, wrap=tk.WORD)
+log_box = tk.Text(log_frame, width=50, height=8, wrap=tk.WORD)
 log_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
 log_scrollbar = tk.Scrollbar(log_frame, orient=tk.VERTICAL, command=log_box.yview)
@@ -323,9 +399,7 @@ display_type_label = tk.Label(display_type_frame, text="Figure type")
 display_type_label.pack(side=tk.LEFT)
 
 # Create a combo box for selecting display type
-display_types = ['input', 'Seg', 'SegAHA',
-                 'input_crop', 'Seg_crop', 'SegAHA_crop',
-                 'LV', 'LVM', 'RV']
+display_types = ['input', 'Seg', 'SegAHA', 'input_crop', 'Seg_crop', 'SegAHA_crop', 'LV', 'LVM', 'RV']
 display_type_combo = ttk.Combobox(display_type_frame, values=display_types, width=16)
 display_type_combo.pack(side=tk.LEFT, padx=5)
 display_type_combo.current(0)  # Set default display type to 'Seg'
@@ -341,23 +415,15 @@ colormap_combo.pack(side=tk.LEFT, padx=5)
 colormap_combo.current(0)  # Set default colormap to 'gray'
 colormap_combo.bind("<<ComboboxSelected>>", on_colormap_change)
 
-# Create a listbox for the .mat files
-#mat_listbox = tk.Listbox(listbox_frame, width=40, height=10)
-#mat_listbox.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-#mat_listbox.bind('<<ListboxSelect>>', on_mat_select)
 
 
-
-# Create a frame for the listbox and display type combo box
-listbox_frame = tk.Frame(frame)
-listbox_frame.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
 # Create a scrollbar for the listbox
 listbox_scrollbar = tk.Scrollbar(listbox_frame, orient=tk.VERTICAL)
 listbox_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
 # Create a listbox for the .mat files
-mat_listbox = tk.Listbox(listbox_frame, width=40, height=10, yscrollcommand=listbox_scrollbar.set)
+mat_listbox = tk.Listbox(listbox_frame, width=40, height=5, yscrollcommand=listbox_scrollbar.set)
 mat_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 mat_listbox.bind('<<ListboxSelect>>', on_mat_select)
 
@@ -370,7 +436,7 @@ progress_bar.pack(side=tk.TOP, fill=tk.BOTH)
 
 # Create a frame for the canvas and slider
 canvas_slider_frame = tk.Frame(root)
-canvas_slider_frame.pack(padx=10, pady=10, side=tk.RIGHT, fill=tk.BOTH, expand=True)
+canvas_slider_frame.pack(padx=2, pady=10, side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
 # Create a frame for the canvas
 canvas_frame = tk.Frame(canvas_slider_frame, width=400, height=600, bg='black')  # Set background to black and fix size
@@ -381,14 +447,25 @@ spacer_frame = tk.Frame(canvas_slider_frame, width=20)
 spacer_frame.pack(side=tk.LEFT, fill=tk.Y)
 
 # Create the time slider
-time_slider = tk.Scale(canvas_slider_frame, from_=0, to=0, orient=tk.VERTICAL,
-                       command=lambda val: update_montage(int(val)))
+time_slider = tk.Scale(canvas_slider_frame, from_=0, to=0, orient=tk.VERTICAL, command=lambda val: update_montage(int(val)))
 time_slider.pack(side=tk.RIGHT, fill=tk.Y)
 
 # Initial update of the .mat listbox
 update_mat_listbox()
 
-list_and_log_sample_files('./sample')
+welcome_msg = f'''\n* Step 1: Click GenCSV to search Cine NIFTI files.
+* Step 2: TigerHx will generate a CSV file in {sample_path}.
+* Step 3: Edit the CSV file and assign APEX numbers.
+* Step 4: Click 'Go' to start the automatic segmentation.
+* Step 5: Click the prediction files to inspect the results.'''
+log_message(log_box, welcome_msg)
+
+welcome_msg = f'''\n* 1: 點選GenCSV去搜尋 Cine NIfTI 資料集
+* 2: TigerHx 將在 {sample_path} 生成一個 CSV 檔案
+* 3: 編輯 CSV 檔案並分配 APEX 編號
+* 4: 點擊 Go 以開始使用 TigerHx 進行自動心臟分割
+* 5: 點擊預測檔案以檢查結果\n'''
+log_message(log_box, welcome_msg)
 
 # Run the application
 root.mainloop()
