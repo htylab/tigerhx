@@ -125,7 +125,10 @@ def predict_cine4d(img, model_ff, progress_bar, root, stop_event):
         if np.max(image) == 0:
             continue
         image = image / np.max(image)
-        logits = session.run(None, {"modelInput": image.astype(np.float32)})[0]
+        try:
+            logits = session.run(None, {"modelInput": image.astype(np.float32)})[0]
+        except:
+            logits = session.run(None, {"input": image.astype(np.float32)})[0]
         mask_pred = post(np.argmax(logits[0, ...], axis=0))
         mask_pred4d[..., tti] = mask_pred
 

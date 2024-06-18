@@ -99,13 +99,13 @@ def process_files_multithreaded(files, slice_select, model_ff, common_path, stop
 
         # 調整解析度至(1, 1, original_spacing[2], original_spacing[3])
         new_spacing = (1, 1, voxel_size[2], voxel_size[3])
-        resampled_img, zoom_factors = resample(img, voxel_size, new_spacing, order=3)
+        #resampled_img, zoom_factors = resample(img, voxel_size, new_spacing, order=3)
 
         # 進行預測
-        mask = predict_cine4d(resampled_img, model_ff, progress_bar, root, stop_event)
+        emp = predict_cine4d(img, model_ff, progress_bar, root, stop_event)
 
         # 將mask恢復到原始解析度
-        emp = resample_back(mask, zoom_factors, order=0)
+        #emp = resample_back(mask, zoom_factors, order=0)
 
 
         #original emp = predict_cine4d(img, model_ff, progress_bar, root, stop_event)
