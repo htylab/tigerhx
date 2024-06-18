@@ -29,7 +29,7 @@ setup(
     },
      python_requires='>=3.7',
      install_requires=[
-             'numpy>=1.16.0',
+             'numpy>=1.16.0,<2.0',
              'nibabel>=3.1.0',
              'scipy>=1.6.0'
          ]
