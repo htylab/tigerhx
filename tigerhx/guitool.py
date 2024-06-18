@@ -10,6 +10,7 @@ import onnxruntime
 from tkinter import simpledialog
 import tkinter as tk
 from tigerhx import lib_tool
+import pandas as pd
 
 
 nib.Nifti1Header.quaternion_threshold = -100
