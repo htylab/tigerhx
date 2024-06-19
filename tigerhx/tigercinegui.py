@@ -12,6 +12,9 @@ from skimage.transform import resize
 import numpy as np
 import glob
 from scipy.io import loadmat, savemat
+from scipy import ndimage
+from matplotlib.colors import ListedColormap
+from scipy.ndimage import binary_erosion
 
 # Determine if the application is a script file or frozen exe
 if getattr(sys, 'frozen', False):
@@ -36,6 +39,7 @@ canvas = None
 im = None
 nii_files_listbox = None
 seg = None
+norm_max = None
 stop_event = threading.Event()
 
 def on_go():
@@ -98,17 +102,14 @@ def process_files_multithreaded(files, slice_select, model_ff, common_path, stop
 
 
         # 調整解析度至(1, 1, original_spacing[2], original_spacing[3])
-        new_spacing = (1, 1, voxel_size[2], voxel_size[3])
+        #new_spacing = (1, 1, voxel_size[2], voxel_size[3])
         #resampled_img, zoom_factors = resample(img, voxel_size, new_spacing, order=3)
-
-        # 進行預測
-        emp = predict_cine4d(img, model_ff, progress_bar, root, stop_event)
-
-        # 將mask恢復到原始解析度
+        #mask = predict_cine4d(resampled_img, model_ff, progress_bar, root, stop_event)
         #emp = resample_back(mask, zoom_factors, order=0)
 
 
-        #original emp = predict_cine4d(img, model_ff, progress_bar, root, stop_event)
+        #original 
+        emp = predict_cine4d(img, model_ff, progress_bar, root, stop_event)
 
         if stop_event.is_set():
             stopped = True
@@ -153,8 +154,8 @@ def process_files_multithreaded(files, slice_select, model_ff, common_path, stop
         x0, x1 = max(0, xx.min() - 10), min(mask.shape[0], xx.max() + 10)
         y0, y1 = max(0, yy.min() - 10), min(mask.shape[1], yy.max() + 10)
 
-        dict = {'input': img_ori, 'Seg': Seg, 'SegAHA': Seg_AHA,
-                'input_crop': img_ori[x0:x1, y0:y1], 'Seg_crop': Seg[x0:x1, y0:y1],
+        dict = {'input': img, 'Seg': Seg, 'SegAHA': Seg_AHA,
+                'input_crop': img[x0:x1, y0:y1], 'Seg_crop': Seg[x0:x1, y0:y1],
                 'SegAHA_crop': Seg_AHA[x0:x1, y0:y1],
                 'LV': LV, 'LVM': LVM, 'RV': RV,
                 'voxel_size': np.array(voxel_size)}
@@ -184,14 +185,9 @@ def on_mat_select(event):
             try:
                 data = loadmat(mat_path)
                 selected_type = display_type_combo.get()
-                if selected_type in data:
-                    seg = data[selected_type]
-                    log_message(log_box, f"Showing {selected_mat}")
-                    log_message(log_box, f"{selected_type} matrix size: {seg.shape}")
-                    show_montage(seg)
-                    update_time_slider(seg)  # Adapt the range of the time points
-                else:
-                    log_message(log_box, f"'{selected_type}' not found in {selected_mat}")
+                on_display_type_change(0)
+                log_message(log_box, f"Showing {selected_mat}")
+                log_message(log_box, f"{selected_type} matrix size: {seg.shape}")                
                 
                 if 'model' in data:
                     model_name = data['model'][0]  # from .mat file, the string stored into a cell array
@@ -199,24 +195,61 @@ def on_mat_select(event):
             except Exception as e:
                 log_message(log_box, f"An error occurred: {e}")
 
+
+
+
+def get_edge(input_image, mask):
+
+    def normalize_image(image):
+        global norm_max
+        #normalized_image = (image - np.min(image)) / (np.max(image) - np.min(image))
+        image = np.clip(image, 0, norm_max)
+        normalized_image = (image/norm_max * 254).astype(np.uint8)
+        return normalized_image
+
+    image = normalize_image(input_image)
+    output_image = image.copy()    
+    z_dim, t_dim = image.shape[2], image.shape[3]    
+    for z in range(z_dim):
+        for t in range(t_dim):
+            sobel_x = ndimage.sobel(mask[:, :, z, t], axis=0)
+            sobel_y = ndimage.sobel(mask[:, :, z, t], axis=1)
+            edges = np.hypot(sobel_x, sobel_y)            
+            edges = (edges > 0.8).astype(np.uint8)            
+            output_image[:, :, z, t][edges > 0] = 255
+    return output_image
+
+
+
 def on_display_type_change(event):
-    global seg, data
+    global seg, data, norm_max
+    
+    if data is not None:
+
+        norm_max = np.max(data['input'][data['Seg']==1])
+        if norm_max == 0:
+            np.max(data['input'])
+        selected_type = display_type_combo.get()
+
+        if selected_type == 'edge':
+            seg = get_edge(data['input'], data['Seg'])
+        elif selected_type == 'edge_crop':
+            seg = get_edge(data['input_crop'], data['Seg_crop'])
+        else:                                  
+            seg = data[selected_type]
+        show_montage(seg)
+        update_time_slider(seg)  # Adapt the range of the time points
     try:
-        if seg is not None and data is not None:
-            selected_type = display_type_combo.get()
-            if selected_type in data:
-                seg = data[selected_type]
-                show_montage(seg)
-                update_time_slider(seg)  # Adapt the range of the time points
+        pass
     except:
-        log_message(log_box, f"Select a result file....")
+        log_message(log_box, f"Select a correct result file....")
 
 def on_colormap_change(event):
     if seg is not None:
         show_montage(seg)  # Redraw the figure with the selected colormap
 
 def show_montage(emp, time_frame=0):
-    global fig, ax, canvas, im
+    global fig, ax, canvas, im, norm_max
     plt.close('all')  # Close all previous figures
 
     # Initialize the figure and axes if they do not exist
@@ -266,21 +299,43 @@ def show_montage(emp, time_frame=0):
 
     padded_mosaic = np.pad(mosaic, padding, mode='constant', constant_values=0)
 
-    # Resize the mosaic to 400x600
-    mosaic_resized = resize(padded_mosaic, (600, 400), anti_aliasing=True)
+    cmap = colormap_combo.get()  # Get the selected colormap
 
-    colormap = colormap_combo.get()  # Get the selected colormap
-    if colormap == 'gray':
-        cmap = 'gray'
-    elif colormap == 'viridis':
-        cmap = 'viridis'  # Replace 'vivid' with an actual matplotlib colormap, like 'viridis'
+    # Resize the mosaic to 400x600
+    selected_type = display_type_combo.get()
+    if 'edge' in selected_type:
+        newmosaic = padded_mosaic.copy()
+        edge = (newmosaic==255)
+        newmosaic[edge] = 0
+        
+        mosaic_resized = resize(newmosaic, (600, 400), order=0, preserve_range=True).astype(int)
+        edge = resize(edge, (600, 400), order=0, preserve_range=True)
+        mosaic_resized[edge] = 255
+        
+        base_cmap = plt.get_cmap(cmap)
+        base_colors = base_cmap(np.arange(256))
+        base_colors[255] = (1, 0, 0, 1)
+        cmap =ListedColormap(base_colors)
+        display_min = 0
+        display_max = 255
+    else:
+        mosaic_resized = resize(padded_mosaic, (600, 400))
+        display_min = emp.min()
+        display_max = norm_max
+
+    if ('Seg' in selected_type) or (selected_type in ['RV', 'LV', 'LVM']):
+        display_min = emp.min()
+        display_max = emp.max()
+
+
 
     if im is None:
-        im = ax.imshow(mosaic_resized, cmap=cmap)
+        im = ax.imshow(mosaic_resized, cmap=cmap, interpolation='nearest')
+        im.set_clim(vmin=display_min, vmax=display_max)
     else:
         im.set_data(mosaic_resized)
         im.set_cmap(cmap)
-        im.set_clim(vmin=emp.min(), vmax=emp.max())
+        im.set_clim(vmin=display_min, vmax=display_max)
 
     canvas = FigureCanvasTkAgg(fig, master=canvas_frame)
     canvas.get_tk_widget().pack(fill=tk.BOTH, expand=False)
@@ -452,7 +507,9 @@ display_type_label = tk.Label(display_type_frame, text="Figure type")
 display_type_label.pack(side=tk.LEFT)
 
 # Create a combo box for selecting display type
-display_types = ['input', 'Seg', 'SegAHA', 'input_crop', 'Seg_crop', 'SegAHA_crop', 'LV', 'LVM', 'RV']
+display_types = ['input', 'edge', 'Seg', 'SegAHA',
+                 'input_crop', 'edge_crop', 'Seg_crop',
+                 'SegAHA_crop', 'LV', 'LVM', 'RV']
 display_type_combo = ttk.Combobox(display_type_frame, values=display_types, width=16)
 display_type_combo.pack(side=tk.LEFT, padx=5)
 display_type_combo.current(0)  # Set default display type to 'Seg'
