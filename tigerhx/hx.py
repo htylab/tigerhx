@@ -119,6 +119,14 @@ def run_args(args):
         return result_list[0]
     else:
         return result_list
+    
+def predict(data, model='cine4d_v0003_xy_mms12acdc.onnx', GPU=False):
+    # for single call from python package
+    model_name = lib_tool.get_model(model)
+    mask_pred = lib_hx.run(model_name, data, GPU=GPU)
+    mask_pred = lib_hx.post(mask_pred)
+
+    return mask_pred
 
 if __name__ == "__main__":
     main()
