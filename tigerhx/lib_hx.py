@@ -18,7 +18,7 @@ def get_mode(model_ff):
     return seg_mode, version, model_str
 
 
-def post(mask, th=50):
+def post(mask):
 
     def getLarea(input_mask):
         from scipy import ndimage
@@ -35,10 +35,7 @@ def post(mask, th=50):
     masknew = mask * 0
     for jj in range(1, int(mask.max()) + 1):
         masknew[getLarea(mask == jj)] = jj
-    
-    if (np.sum(masknew==1) < th):
 
-        masknew = np.zeros_like(mask, dtype=int)
 
     return masknew
 

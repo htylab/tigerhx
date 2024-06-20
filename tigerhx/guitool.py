@@ -212,3 +212,90 @@ def init_app(application_path):
 
             if not download_ok:
                 raise ValueError('Server error. Please check the model name or internet connection.')
+            
+
+def get_edge(input_image, mask):
+
+    def normalize_image(image):
+        global norm_max
+        #normalized_image = (image - np.min(image)) / (np.max(image) - np.min(image))
+        image = np.clip(image, 0, norm_max)
+        normalized_image = (image/norm_max * 254).astype(np.uint8)
+        return normalized_image
+
+    image = normalize_image(input_image)
+    output_image = image.copy()    
+    z_dim, t_dim = image.shape[2], image.shape[3]    
+    for z in range(z_dim):
+        for t in range(t_dim):
+            sobel_x = ndimage.sobel(mask[:, :, z, t], axis=0)
+            sobel_y = ndimage.sobel(mask[:, :, z, t], axis=1)
+            edges = np.hypot(sobel_x, sobel_y)            
+            edges = (edges > 0.8).astype(np.uint8)            
+            output_image[:, :, z, t][edges > 0] = 255
+    return output_image
+
+
+
+def select_folder():
+
+    def get_nii_files(folder_selected, keyword):
+        nii_files = []
+        for root, _, files in os.walk(folder_selected):
+            nii_files.extend(glob.glob(os.path.join(root, '*.nii*')))
+
+        if keyword == '':
+            ffs = nii_files
+        else:
+            include_list, exclude_list = extract_keywords(keyword)
+
+            ffs = []
+            for ff in nii_files:
+                got_file = False
+                for keyword in include_list:
+                    if keyword in ff:
+                        got_file = True
+                        break
+                for keyword in exclude_list:
+                    if keyword in ff:
+                        got_file = False
+                        break
+                if got_file: ffs.append(ff)
+
+        return ffs
+
+    def extract_keywords(string):
+        include = []
+        exclude = []
+        string = string.replace(' ', '')
+        words = string.split(',')
+        for word in words:
+            word = word.strip()
+            if word.startswith('+'):
+                include.append(word[1:])
+            elif word.startswith('-'):
+                exclude.append(word[1:])
+        
+        return include, exclude
+
+    folder_selected = filedialog.askdirectory()
+    keyword = simpledialog.askstring("Keyword Input",
+                                     "Keyword to include and then exclude. e.g., +CINE4D,-mask.",
+                                     initialvalue="+CINE4D,+ED.nii,-mask")
+    
+
+    if not folder_selected: return 0
+
+    ffs = get_nii_files(folder_selected, keyword)      
+
+    # Check if 'files.csv' exists and modify the filename if necessary
+    log_message(log_box, f"Found {len(ffs)}.")
+    if len(ffs) > 0:
+        timestamp = time.strftime("%y%m%d_%H%M%S")
+        f_name = os.path.join(sample_path, f'files_{timestamp}.csv')
+        
+        with open(f_name, 'w') as f:
+            f.write('Filename,Apex\n')
+            for ff in ffs:
+                f.write(ff + ',2\n')
+        log_message(log_box, f"Please edit {f_name} for segmentation.")
