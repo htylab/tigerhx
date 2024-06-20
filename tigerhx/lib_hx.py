@@ -18,9 +18,9 @@ def get_mode(model_ff):
     return seg_mode, version, model_str
 
 
-def post(mask):
+def post(mask, th):
 
-    def getLarea(input_mask):
+    def getLarea(input_mask, th):
         from scipy import ndimage
         labeled_mask, cc_num = ndimage.label(input_mask)
 
@@ -30,19 +30,19 @@ def post(mask):
         else:
             mask = input_mask
 
-        if np.sum(mask) < 50: mask = np.zeros_like(mask, dtype=bool)
+        if np.sum(mask) < th: mask = np.zeros_like(mask, dtype=bool)
         return mask
 
     masknew = mask * 0
     for jj in range(1, int(mask.max()) + 1):
-        masknew[getLarea(mask == jj)] = jj
+        masknew[getLarea(mask == jj, th)] = jj
 
     if np.sum(masknew==1) == 0: masknew = np.zeros_like(mask, dtype=int)
 
     return masknew
 
 
-def run(model_ff, input_data, GPU):
+def run(model_ff, input_data, GPU, th=50):
     xyzt_mode, _, _ = get_mode(model_ff)
 
 
@@ -70,7 +70,7 @@ def run(model_ff, input_data, GPU):
 
         logits = lib_tool.predict(model_ff, image, GPU)
    
-        mask_pred = post(np.argmax(logits[0, ...], axis=0))
+        mask_pred = post(np.argmax(logits[0, ...], axis=0), th=th)
         mask_pred3d[..., tti] = mask_pred
 
     if data4d:
