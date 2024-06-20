@@ -55,8 +55,6 @@ def run(model_ff, input_data, GPU):
 
     
     mask_pred3d = data * 0
-
-
     
     for tti in range(data.shape[-1]):
 

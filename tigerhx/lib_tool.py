@@ -221,3 +221,33 @@ def predict(model, data, GPU):
 
     return session.run(None, {session.get_inputs()[0].name: data.astype(data_type)}, )[0]
 
+
+def get_dice(mask11, mask22, labels=None):
+    mask1 = mask11.astype(int).flatten()
+    mask2 = mask22.astype(int).flatten()
+    if labels is None:
+        #num_labels = max(mask1.max(), mask2.max()) + 1
+        labels = np.unique(np.concatenate([mask1, mask2]))
+        
+    #print(num_labels)
+    
+    dice_scores = []
+    
+    for label in labels:
+        mask1_label = (mask1 == label).astype(np.uint8)
+        mask2_label = (mask2 == label).astype(np.uint8)
+        
+        intersection = np.sum(mask1_label * mask2_label)
+        volume1 = np.sum(mask1_label)
+        volume2 = np.sum(mask2_label)
+        
+        if volume1 + volume2 == 0:
+            dsc = 1.0
+        else:
+            dsc = (2.0 * intersection) / (volume1 + volume2)
+            
+        dice_scores.append(dsc)
+    
+    return np.array(dice_scores)
+
+
