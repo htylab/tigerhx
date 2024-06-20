@@ -18,9 +18,9 @@ def get_mode(model_ff):
     return seg_mode, version, model_str
 
 
-def post(mask, th):
+def post(mask, th=50):
 
-    def getLarea(input_mask, th):
+    def getLarea(input_mask, th=50):
         from scipy import ndimage
         labeled_mask, cc_num = ndimage.label(input_mask)
 
