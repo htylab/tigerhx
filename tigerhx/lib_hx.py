@@ -35,7 +35,8 @@ def post(mask, th=50):
     masknew = mask * 0
     for jj in range(1, int(mask.max()) + 1):
         masknew[getLarea(mask == jj)] = jj
-    if (np.sum(masknew==1) == 0) or (np.sum(masknew>0) < th) :
+    
+    if (np.sum(masknew==1) < th):
 
         masknew = np.zeros_like(mask, dtype=int)
 
