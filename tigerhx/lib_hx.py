@@ -29,11 +29,15 @@ def post(mask):
                 labeled_mask.flat)[1:].argmax() + 1))
         else:
             mask = input_mask
+
+        if np.sum(mask) < 50: mask = np.zeros_like(mask, dtype=bool)
         return mask
 
     masknew = mask * 0
     for jj in range(1, int(mask.max()) + 1):
         masknew[getLarea(mask == jj)] = jj
+
+    if np.sum(masknew==1) == 0: masknew = np.zeros_like(mask, dtype=int)
 
     return masknew
 

@@ -101,9 +101,10 @@ def predict_cine4d(img, model_ff, progress_bar, root, stop_event):
         try:
             labeled_mask, cc_num = ndimage.label(input_mask)
             mask = (labeled_mask == (np.bincount(labeled_mask.flat)[1:].argmax() + 1))
+            if np.sum(mask) < 50: mask = mask * 0
         except:
             mask = input_mask
-        return mask
+        return mask.astype(bool)
 
     def post(mask):
         masknew = mask * 0
