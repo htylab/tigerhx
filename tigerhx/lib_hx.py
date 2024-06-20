@@ -79,7 +79,7 @@ def run(model_ff, input_data, GPU, th=50):
         mask_pred_final = mask_pred3d
 
 
-    mask_pred_final = post(mask_pred_final)
+    #mask_pred_final = post(mask_pred_final, th)
 
     return mask_pred_final
 
