@@ -1,1 +1,1 @@
-from tigerhx.hx import run
+from tigerhx.hx import run, predict
