@@ -11,7 +11,9 @@ from tkinter import simpledialog
 import tkinter as tk
 from tigerhx import lib_tool
 import pandas as pd
-
+from scipy import ndimage
+import numpy as np
+from skimage.transform import resize
 
 nib.Nifti1Header.quaternion_threshold = -100
 
@@ -214,25 +216,39 @@ def init_app(application_path):
                 raise ValueError('Server error. Please check the model name or internet connection.')
             
 
-def get_edge(input_image, mask):
+def get_edge(input_image, mask, norm_max):
+    def edge2d(slice_mask):
+        #labels = np.unique(slice_mask)
+        edges_combined = np.zeros_like(slice_mask, dtype=bool)
+        for label in [1, 2, 3]:
+            binary_mask = (slice_mask == label).astype(int)
+            sobel_x = ndimage.sobel(binary_mask, axis=0)
+            sobel_y = ndimage.sobel(binary_mask, axis=1)
+            edges = np.hypot(sobel_x, sobel_y)            
 
-    def normalize_image(image):
-        global norm_max
-        #normalized_image = (image - np.min(image)) / (np.max(image) - np.min(image))
-        image = np.clip(image, 0, norm_max)
-        normalized_image = (image/norm_max * 254).astype(np.uint8)
-        return normalized_image
+            edges = (edges > 2).astype(np.uint8)
+            edges_combined = np.logical_or(edges_combined, edges)
+        return edges_combined
 
-    image = normalize_image(input_image)
+    image = np.clip(input_image, 0, norm_max)
+    image = (image/norm_max * 254).astype(np.uint8)
+
     output_image = image.copy()    
     z_dim, t_dim = image.shape[2], image.shape[3]    
     for z in range(z_dim):
         for t in range(t_dim):
-            sobel_x = ndimage.sobel(mask[:, :, z, t], axis=0)
-            sobel_y = ndimage.sobel(mask[:, :, z, t], axis=1)
-            edges = np.hypot(sobel_x, sobel_y)            
-            edges = (edges > 0.8).astype(np.uint8)            
+            #sobel_x = ndimage.sobel(mask[:, :, z, t], axis=0)
+            #sobel_y = ndimage.sobel(mask[:, :, z, t], axis=1)
+            #edges = np.hypot(sobel_x, sobel_y)            
+
+            #edges = (edges > 2).astype(np.uint8)
+
+
+            edges = edge2d(mask[:, :, z, t])
+
             output_image[:, :, z, t][edges > 0] = 255
+
+
     return output_image
 
 
@@ -299,3 +315,44 @@ def select_folder():
             for ff in ffs:
                 f.write(ff + ',2\n')
         log_message(log_box, f"Please edit {f_name} for segmentation.")
+
+
+
+def create_padded_mosaic(emp, time_frame=0, aspect_ratio=0.66):
+    # Number of slices in the z-dimension
+    num_slices = emp.shape[2]
+
+    if len(emp.shape) == 3: emp = emp[..., None]
+
+    # Determine grid size for the mosaic to match the aspect ratio 400:600
+    slice_shape = emp[:, :, 0, time_frame].shape
+    #aspect_ratio = 600 / 400
+    num_cols = int(np.ceil(np.sqrt(num_slices / aspect_ratio)))
+    num_rows = int(np.ceil(num_slices / num_cols))
+
+    # Initialize an empty array for the mosaic
+    mosaic = np.zeros((num_rows * slice_shape[0], num_cols * slice_shape[1]))
+
+    # Fill the mosaic with slices
+    for i in range(num_slices):
+        row = i // num_cols
+        col = i % num_cols
+        mosaic[row * slice_shape[0]:(row + 1) * slice_shape[0], col * slice_shape[1]:(col + 1) * slice_shape[1]] = emp[:, :, i, time_frame]
+
+    # Pad the mosaic to maintain aspect ratio 400 (width) x 600 (height)
+    mosaic_height, mosaic_width = mosaic.shape
+    #target_aspect_ratio = 600 / 400
+    target_aspect_ratio = aspect_ratio
+
+    if mosaic_height / mosaic_width > target_aspect_ratio:
+        new_width = int(mosaic_height / target_aspect_ratio)
+        pad_width = new_width - mosaic_width
+        padding = ((0, 0), (pad_width // 2, pad_width - pad_width // 2))
+    else:
+        new_height = int(mosaic_width * target_aspect_ratio)
+        pad_height = new_height - mosaic_height
+        padding = ((pad_height // 2, pad_height - pad_height // 2), (0, 0))
+
+    padded_mosaic = np.pad(mosaic, padding, mode='constant', constant_values=0)
+    
+    return padded_mosaic

@@ -12,7 +12,7 @@ from skimage.transform import resize
 import numpy as np
 import glob
 from scipy.io import loadmat, savemat
-from scipy import ndimage
+
 from matplotlib.colors import ListedColormap
 from scipy.ndimage import binary_erosion
 
@@ -196,31 +196,6 @@ def on_mat_select(event):
                 log_message(log_box, f"An error occurred: {e}")
 
 
-
-
-def get_edge(input_image, mask):
-
-    def normalize_image(image):
-        global norm_max
-        #normalized_image = (image - np.min(image)) / (np.max(image) - np.min(image))
-        image = np.clip(image, 0, norm_max)
-        normalized_image = (image/norm_max * 254).astype(np.uint8)
-        return normalized_image
-
-    image = normalize_image(input_image)
-    output_image = image.copy()    
-    z_dim, t_dim = image.shape[2], image.shape[3]    
-    for z in range(z_dim):
-        for t in range(t_dim):
-            sobel_x = ndimage.sobel(mask[:, :, z, t], axis=0)
-            sobel_y = ndimage.sobel(mask[:, :, z, t], axis=1)
-            edges = np.hypot(sobel_x, sobel_y)            
-            edges = (edges > 0.8).astype(np.uint8)            
-            output_image[:, :, z, t][edges > 0] = 255
-    return output_image
-
-
-
 def on_display_type_change(event):
     global seg, data, norm_max
     
@@ -232,9 +207,9 @@ def on_display_type_change(event):
         selected_type = display_type_combo.get()
 
         if selected_type == 'edge':
-            seg = get_edge(data['input'], data['Seg'])
+            seg = get_edge(data['input'], data['Seg'], norm_max)
         elif selected_type == 'edge_crop':
-            seg = get_edge(data['input_crop'], data['Seg_crop'])
+            seg = get_edge(data['input_crop'], data['Seg_crop'], norm_max)
         else:                                  
             seg = data[selected_type]
         show_montage(seg)
@@ -264,70 +239,41 @@ def show_montage(emp, time_frame=0):
     for widget in canvas_frame.winfo_children():
         widget.destroy()
 
-    # Number of slices in the z-dimension
-    num_slices = emp.shape[2]
-
-    if len(emp.shape) == 3: emp = emp[..., None]
-
-    # Determine grid size for the mosaic to match the aspect ratio 400:600
-    slice_shape = emp[:, :, 0, time_frame].shape
-    aspect_ratio = 600 / 400
-    num_cols = int(np.ceil(np.sqrt(num_slices / aspect_ratio)))
-    num_rows = int(np.ceil(num_slices / num_cols))
-
-    # Initialize an empty array for the mosaic
-    mosaic = np.zeros((num_rows * slice_shape[0], num_cols * slice_shape[1]))
-
-    # Fill the mosaic with slices
-    for i in range(num_slices):
-        row = i // num_cols
-        col = i % num_cols
-        mosaic[row * slice_shape[0]:(row + 1) * slice_shape[0], col * slice_shape[1]:(col + 1) * slice_shape[1]] = emp[:, :, i, time_frame]
-
-    # Pad the mosaic to maintain aspect ratio 400 (width) x 600 (height)
-    mosaic_height, mosaic_width = mosaic.shape
-    target_aspect_ratio = 600 / 400
-
-    if mosaic_height / mosaic_width > target_aspect_ratio:
-        new_width = int(mosaic_height / target_aspect_ratio)
-        pad_width = new_width - mosaic_width
-        padding = ((0, 0), (pad_width // 2, pad_width - pad_width // 2))
-    else:
-        new_height = int(mosaic_width * target_aspect_ratio)
-        pad_height = new_height - mosaic_height
-        padding = ((pad_height // 2, pad_height - pad_height // 2), (0, 0))
-
-    padded_mosaic = np.pad(mosaic, padding, mode='constant', constant_values=0)
+    
 
     cmap = colormap_combo.get()  # Get the selected colormap
 
     # Resize the mosaic to 400x600
+    height = 600
+    width = 400
+
+    #width = canvas.winfo_width()
+    #height = canvas.winfo_height()
+    padded_mosaic = create_padded_mosaic(emp, time_frame, height/width)
     selected_type = display_type_combo.get()
     if 'edge' in selected_type:
         newmosaic = padded_mosaic.copy()
-        edge = (newmosaic==255)
+        edge = (newmosaic == 255)
         newmosaic[edge] = 0
         
-        mosaic_resized = resize(newmosaic, (600, 400), order=0, preserve_range=True).astype(int)
-        edge = resize(edge, (600, 400), order=0, preserve_range=True)
+        mosaic_resized = resize(newmosaic, (height, width), order=0, preserve_range=True).astype(int)
+        edge = resize(edge, (height, width), order=0, preserve_range=True)
         mosaic_resized[edge] = 255
         
         base_cmap = plt.get_cmap(cmap)
         base_colors = base_cmap(np.arange(256))
         base_colors[255] = (1, 0, 0, 1)
-        cmap =ListedColormap(base_colors)
+        cmap = ListedColormap(base_colors)
         display_min = 0
         display_max = 255
     else:
-        mosaic_resized = resize(padded_mosaic, (600, 400))
+        mosaic_resized = resize(padded_mosaic, (height, width))
         display_min = emp.min()
         display_max = norm_max
 
     if ('Seg' in selected_type) or (selected_type in ['RV', 'LV', 'LVM']):
         display_min = emp.min()
         display_max = emp.max()
-
-
 
     if im is None:
         im = ax.imshow(mosaic_resized, cmap=cmap, interpolation='nearest')
@@ -340,6 +286,7 @@ def show_montage(emp, time_frame=0):
     canvas = FigureCanvasTkAgg(fig, master=canvas_frame)
     canvas.get_tk_widget().pack(fill=tk.BOTH, expand=False)
     canvas.draw()
+
 
 def update_montage(time_frame):
     global seg
@@ -362,68 +309,7 @@ def on_closing():
     root.destroy()
     sys.exit()  # Ensure the program ends
 
-def select_folder():
 
-    def get_nii_files(folder_selected, keyword):
-        nii_files = []
-        for root, _, files in os.walk(folder_selected):
-            nii_files.extend(glob.glob(os.path.join(root, '*.nii*')))
-
-        if keyword == '':
-            ffs = nii_files
-        else:
-            include_list, exclude_list = extract_keywords(keyword)
-
-            ffs = []
-            for ff in nii_files:
-                got_file = False
-                for keyword in include_list:
-                    if keyword in ff:
-                        got_file = True
-                        break
-                for keyword in exclude_list:
-                    if keyword in ff:
-                        got_file = False
-                        break
-                if got_file: ffs.append(ff)
-
-        return ffs
-
-    def extract_keywords(string):
-        include = []
-        exclude = []
-        string = string.replace(' ', '')
-        words = string.split(',')
-        for word in words:
-            word = word.strip()
-            if word.startswith('+'):
-                include.append(word[1:])
-            elif word.startswith('-'):
-                exclude.append(word[1:])
-        
-        return include, exclude
-
-    folder_selected = filedialog.askdirectory()
-    keyword = simpledialog.askstring("Keyword Input",
-                                     "Keyword to include and then exclude. e.g., +CINE4D,-mask.",
-                                     initialvalue="+CINE4D,+ED.nii,-mask")
-    
-
-    if not folder_selected: return 0
-
-    ffs = get_nii_files(folder_selected, keyword)      
-
-    # Check if 'files.csv' exists and modify the filename if necessary
-    log_message(log_box, f"Found {len(ffs)}.")
-    if len(ffs) > 0:
-        timestamp = time.strftime("%y%m%d_%H%M%S")
-        f_name = os.path.join(sample_path, f'files_{timestamp}.csv')
-        
-        with open(f_name, 'w') as f:
-            f.write('Filename,Apex\n')
-            for ff in ffs:
-                f.write(ff + ',2\n')
-        log_message(log_box, f"Please edit {f_name} for segmentation.")
 
 
 def stop_processing():
@@ -552,8 +438,10 @@ canvas_slider_frame.pack(padx=2, pady=10, side=tk.RIGHT, fill=tk.BOTH, expand=Tr
 canvas_frame = tk.Frame(canvas_slider_frame, width=400, height=600, bg='black')  # Set background to black and fix size
 canvas_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
 
+
+
 # Create spacer frame
-spacer_frame = tk.Frame(canvas_slider_frame, width=20)
+spacer_frame = tk.Frame(canvas_slider_frame, width=10)
 spacer_frame.pack(side=tk.LEFT, fill=tk.Y)
 
 # Create the time slider
