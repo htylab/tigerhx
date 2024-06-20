@@ -20,7 +20,7 @@ def get_mode(model_ff):
 
 def post(mask, th=50):
 
-    def getLarea(input_mask, th=50):
+    def getLarea(input_mask):
         from scipy import ndimage
         labeled_mask, cc_num = ndimage.label(input_mask)
 
@@ -30,14 +30,13 @@ def post(mask, th=50):
         else:
             mask = input_mask
 
-        if np.sum(mask) < th: mask = np.zeros_like(mask, dtype=bool)
         return mask
 
     masknew = mask * 0
     for jj in range(1, int(mask.max()) + 1):
         masknew[getLarea(mask == jj, th)] = jj
 
-    if np.sum(masknew==1) == 0: masknew = np.zeros_like(mask, dtype=int)
+    if (np.sum(masknew==1) == 0) or (np.sum(masknew>0) < th) : masknew = np.zeros_like(mask, dtype=int)
 
     return masknew
 
