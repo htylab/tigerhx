@@ -25,6 +25,7 @@ elif __file__:
 model_path = join(application_path, 'models')
 output_path = join(application_path, 'output')
 sample_path = join(application_path, 'csv')
+csv_path = join(application_path, 'csv')
 init_app(application_path)
 
 class GlobalVariables:
@@ -44,6 +45,7 @@ class GlobalVariables:
         self.norm_max = None
         self.canvas_widget = None
         self.stop_event = threading.Event()
+        self.csv_path = csv_path
 
 # Initialize the global variables
 GV = GlobalVariables()
@@ -66,15 +68,16 @@ def on_go():
         default_dir = os.path.join(application_path, 'csv')
         selected_file = filedialog.askopenfilename(initialdir=default_dir, filetypes=filetypes)
 
-        files, slice_select, common_path = run_program_gui_interaction(selected_file, GV.log_box, GV.root)
-
+        files, options, common_path = run_program_gui_interaction(selected_file, GV.log_box, GV.root)
+        
         threading.Thread(target=process_files_multithreaded,
-                         args=(files, slice_select, model_ff, common_path, GV.stop_event)).start()
+                         args=(files, options, model_ff, common_path, GV.stop_event)).start()
     else:
         log_message(GV.log_box, "No Selection: Please select a model from the list.")
 
-def process_files_multithreaded(files, slice_select, model_ff, common_path, stop_event):
+def process_files_multithreaded(files, options, model_ff, common_path, stop_event):
     from scipy.ndimage import zoom
+  
     def resample(data, original_spacing, new_spacing, order=3):
         zoom_factors = [original_spacing[i] / new_spacing[i] for i in range(len(original_spacing))]
         resampled_data = zoom(data, zoom_factors, order=order)
@@ -112,7 +115,7 @@ def process_files_multithreaded(files, slice_select, model_ff, common_path, stop
             stopped = True
             break
         
-        log_message(GV.log_box, f'Selected slice for apex:  {slice_select[num]}/{img.shape[2] - 1}')
+        log_message(GV.log_box, f'Selected slice for apex:  {options[num]["Apex"]}/{img.shape[2] - 1}')
         log_message(GV.log_box, f'Creating AHA segments.........')
 
         LVM = emp * 0
@@ -124,7 +127,7 @@ def process_files_multithreaded(files, slice_select, model_ff, common_path, stop
             if stop_event.is_set():
                 stopped = True
                 break
-            if i == slice_select[num]:
+            if i == options[num]['Apex']:
                 nseg = 4
             for j in range(LVM.shape[3]):
                 if np.count_nonzero(emp[..., i, j] == 1) > 0 and np.count_nonzero(emp[..., i, j] == 2) > 0 and np.count_nonzero(emp[..., i, j] == 3) > 0:
@@ -304,6 +307,10 @@ def on_closing():
     GV.root.destroy()
     sys.exit()  # Ensure the program ends
 
+def on_select_folder():
+    global GV
+    select_folder(GV)
+
 def stop_processing():
     global GV
     log_message(GV.log_box, "Processing stopped by user.")
@@ -339,17 +346,20 @@ combo_frame.pack(pady=5)
 label = tk.Label(combo_frame, text="Model")
 label.pack(side=tk.LEFT, pady=5)
 
-# Create a combo box to display the ONNX files
-GV.combo = ttk.Combobox(combo_frame, values=list_onnx_files(model_path), width=30)
+onnx_files = list_onnx_files(model_path)
+
+# 创建ComboBox并设置默认选择最后一个ONNX文件
+GV.combo = ttk.Combobox(combo_frame, values=onnx_files, width=30)
 GV.combo.pack(side=tk.LEFT, padx=5)
-GV.combo.current(0)  # Select the first ONNX file by default
+GV.combo.current(len(onnx_files) - 1)
+
 
 # Create a frame for the combo box and "Go" button
 button_frame = tk.Frame(frame)
 button_frame.pack(pady=5)
 
 # Create a button to select a folder
-select_folder_button = tk.Button(button_frame, text="GenCSV", command=select_folder)
+select_folder_button = tk.Button(button_frame, text="GenCSV", command=on_select_folder)
 select_folder_button.pack(side=tk.LEFT, padx=5)
 
 # Create a "Go" button

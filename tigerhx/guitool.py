@@ -1,27 +1,25 @@
-# tool.py
-
 import os
 import numpy as np
-from glob import glob
+import glob
 from os.path import basename, join, isfile
 from scipy.io import savemat, loadmat
 import nibabel as nib
 import onnxruntime
-from tkinter import simpledialog
+from tkinter import simpledialog, filedialog
 import tkinter as tk
 from tigerhx import lib_tool
 import pandas as pd
 from scipy import ndimage
 import numpy as np
 from skimage.transform import resize
-
+import time
 nib.Nifti1Header.quaternion_threshold = -100
 
 def list_onnx_files(directory):
     return [f for f in os.listdir(directory) if f.endswith('.onnx')]
 
 def list_mat_files(mat_dir):
-    return [basename(f) for f in glob(join(mat_dir, '*pred*.mat'))]
+    return [basename(f) for f in glob.glob(join(mat_dir, '*pred*.mat'))]
 
 def log_message(log_box, message):
     log_box.insert(tk.END, message + '\n')
@@ -163,7 +161,7 @@ def run_program_gui_interaction(selected_file, log_box, root):
                 aha4_start = -1
         slice_select.append(aha4_start)
 
-        return files, slice_select, None
+        return files, [slice_select, None, None], None, 
 
     elif selected_file.endswith('.csv'):
         # Process CSV files
@@ -172,13 +170,14 @@ def run_program_gui_interaction(selected_file, log_box, root):
   
             csv_data = pd.read_csv(selected_file)
             files = csv_data['Filename'].tolist()
-            slice_select = csv_data['Apex'].tolist()
-
+            #options = csv_data[['Apex', 'nii_in_inputdir', 'mat_in_inputdir']].values.tolist()
+            options = csv_data[['Apex', 'nii_in_inputdir', 'mat_in_inputdir']].to_dict(orient='records')
+            #where is apex, whether you want to save nii, whether you want to save mat in input dir
 
             common_path = os.path.commonpath(files)
 
         log_message(log_box, f"Found {len(files)} for processing....")
-        return files, slice_select, common_path
+        return files, options, common_path
 
     else:
         log_message(log_box, "Unsupported file type selected.")
@@ -254,7 +253,7 @@ def get_edge(input_image, mask, norm_max):
 
 
 
-def select_folder():
+def select_folder(GV):
 
     def get_nii_files(folder_selected, keyword):
         nii_files = []
@@ -298,7 +297,7 @@ def select_folder():
     folder_selected = filedialog.askdirectory()
     keyword = simpledialog.askstring("Keyword Input",
                                      "Keyword to include and then exclude. e.g., +CINE4D,-mask.",
-                                     initialvalue="+CINE4D,+ED.nii,-mask")
+                                     initialvalue="+ES.nii,+ED.nii,-mask")
     
 
     if not folder_selected: return 0
@@ -306,16 +305,16 @@ def select_folder():
     ffs = get_nii_files(folder_selected, keyword)      
 
     # Check if 'files.csv' exists and modify the filename if necessary
-    log_message(log_box, f"Found {len(ffs)}.")
+    log_message(GV.log_box, f"Found {len(ffs)}.")
     if len(ffs) > 0:
         timestamp = time.strftime("%y%m%d_%H%M%S")
-        f_name = os.path.join(sample_path, f'files_{timestamp}.csv')
+        f_name = os.path.join(GV.csv_path, f'files_{timestamp}.csv')
         
         with open(f_name, 'w') as f:
-            f.write('Filename,Apex\n')
+            f.write('Filename,Apex,mat_in_inputdir,nii_in_inputdir\n')
             for ff in ffs:
-                f.write(ff + ',2\n')
-        log_message(log_box, f"Please edit {f_name} for segmentation.")
+                f.write(ff + ',2,1,1\n')
+        log_message(GV.log_box, f"Please edit {f_name} for segmentation.")
 
 
 
