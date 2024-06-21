@@ -177,7 +177,7 @@ def run_program_gui_interaction(selected_file, log_box, root):
         option_dict['nii_in_inputdir'] = save_nii
 
 
-        return files, [option_dict], None, 
+        return files, [option_dict], None
 
     elif selected_file.endswith('.csv'):
         # Process CSV files
