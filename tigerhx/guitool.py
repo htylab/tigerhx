@@ -209,11 +209,14 @@ def init_app(application_path):
 
     model_server = 'https://github.com/htylab/tigerhx/releases/download/modelhub/'
 
-    default_models = ['cine4d_v0001_xyz_mms12.onnx',
-                    'cine4d_v0002_xyz_mms12acdc.onnx',
-                    'cine4d_v0003_xy_mms12acdc.onnx',
-                    'cine4d_v0004_xy_retrain.onnx',
-                    'cine4d_v0005_xy_cineT1map.onnx']
+    #'cine4d_v0001_xyz_mms12.onnx',
+    #'cine4d_v0002_xyz_mms12acdc.onnx',
+    #'cine4d_v0003_xy_mms12acdc.onnx',
+    
+
+    default_models = ['cine4d_v0004_xy_retrain.onnx',
+                    'cine4d_v0005_xy_cineT1map.onnx',
+                    'cine4d_v0006_xy_cine.onnx']
 
     for m0 in default_models:
         model_file = join(model_path, m0)
