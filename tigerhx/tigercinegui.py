@@ -7,7 +7,7 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from guitool import *
-from os.path import join, isfile, basename
+from os.path import join, isfile, basename, dirname
 from skimage.transform import resize
 import numpy as np
 import glob
@@ -75,7 +75,7 @@ def on_go():
     else:
         log_message(GV.log_box, "No Selection: Please select a model from the list.")
 
-def process_files_multithreaded(files, options, model_ff, common_path, stop_event):
+def process_files_multithreaded(files, option_list, model_ff, common_path, stop_event):
     from scipy.ndimage import zoom
   
     def resample(data, original_spacing, new_spacing, order=3):
@@ -91,13 +91,16 @@ def process_files_multithreaded(files, options, model_ff, common_path, stop_even
     onnx_version = basename(model_ff).split('_')[1]
     stopped = False
     for num, file in enumerate(files):
+        option = option_list[num]
         if stop_event.is_set():
             stopped = True
             break
         if common_path is None:
             name = basename(file)
+            display_name = file
         else:
             name  = os.path.relpath(file, common_path).replace(os.sep, '_')
+            display_name = os.path.relpath(file, common_path)
         name = name.split('.nii')[0]
         img_ori, affine, header = load_nii(file)
         img = img_ori.copy()
@@ -106,7 +109,7 @@ def process_files_multithreaded(files, options, model_ff, common_path, stop_even
         if len(img.shape) == 3:
             img = img[..., None]
             voxel_size = list(voxel_size) + [1]
-        log_message(GV.log_box, f'{num + 1}/{len(files)}: Predicting {basename(file)} ......')
+        log_message(GV.log_box, f'{num + 1}/{len(files)}: Predicting {display_name} ......')
 
         # original 
         emp = predict_cine4d(img, model_ff, GV.progress_bar, GV.root, stop_event)
@@ -115,7 +118,7 @@ def process_files_multithreaded(files, options, model_ff, common_path, stop_even
             stopped = True
             break
         
-        log_message(GV.log_box, f'Selected slice for apex:  {options[num]["Apex"]}/{img.shape[2] - 1}')
+        log_message(GV.log_box, f'Selected slice for apex:  {option["Apex"]}/{img.shape[2] - 1}')
         log_message(GV.log_box, f'Creating AHA segments.........')
 
         LVM = emp * 0
@@ -127,7 +130,7 @@ def process_files_multithreaded(files, options, model_ff, common_path, stop_even
             if stop_event.is_set():
                 stopped = True
                 break
-            if i == options[num]['Apex']:
+            if i == option['Apex']:
                 nseg = 4
             for j in range(LVM.shape[3]):
                 if np.count_nonzero(emp[..., i, j] == 1) > 0 and np.count_nonzero(emp[..., i, j] == 2) > 0 and np.count_nonzero(emp[..., i, j] == 3) > 0:
@@ -160,6 +163,18 @@ def process_files_multithreaded(files, options, model_ff, common_path, stop_even
         
         dict['model'] = basename(model_ff)
         savemat(f'./output/{name}_pred_{onnx_version}.mat', dict, do_compression=True)
+
+        if option['mat_in_inputdir']:
+            mat_f = option['Filename']
+            mat_f = join(dirname(mat_f), basename(mat_f).split('.')[0] + f'_{onnx_version}.mat')
+            savemat(mat_f, dict, do_compression=True)
+
+        if option['nii_in_inputdir']:
+            nii_f = option['Filename']
+            nii_f = join(dirname(nii_f), basename(nii_f).split('.')[0] + f'_{onnx_version}_seg.nii.gz')
+
+            nii_img = nib.Nifti1Image(Seg, affine, header)
+            nib.save(nii_img, nii_f)
         log_message(GV.log_box, f'{num + 1}/{len(files)}: {basename(file)} finished ......')
         GV.root.after(0, update_mat_listbox)
 

@@ -145,7 +145,7 @@ def run_program_gui_interaction(selected_file, log_box, root):
     if selected_file.endswith(('.nii', '.nii.gz')):
         # Process NIfTI files
         files = [selected_file]
-        slice_select = []
+        #slice_select = []
         aha4_start = -1
         log_message(log_box, f"Processing {selected_file}")
         root.update()  # Ensure the main window stays updated
@@ -159,9 +159,25 @@ def run_program_gui_interaction(selected_file, log_box, root):
                     aha4_start = -1
             except:
                 aha4_start = -1
-        slice_select.append(aha4_start)
+        #slice_select.append(aha4_start)
 
-        return files, [slice_select, None, None], None, 
+        # 提問是否將結果存入原始資料夾
+        save_to_orig = messagebox.askyesno("Save to Original Folder", "Do you want to save the *.mat results to the original folder?")
+        save_mat = 1 if save_to_orig else 0
+        
+        # 提問是否輸出 .nii.gz 格式
+        save_as_gz = messagebox.askyesno("Save as .nii.gz", "Do you want to output *.nii.gz format to the original folder?")
+        save_nii = 1 if save_as_gz else 0
+        
+
+        option_dict = dict()
+        option_dict['Filename'] = selected_file
+        option_dict['Apex'] = aha4_start
+        option_dict['mat_in_inputdir'] = save_mat
+        option_dict['nii_in_inputdir'] = save_nii
+
+
+        return files, [option_dict], None, 
 
     elif selected_file.endswith('.csv'):
         # Process CSV files
@@ -171,7 +187,7 @@ def run_program_gui_interaction(selected_file, log_box, root):
             csv_data = pd.read_csv(selected_file)
             files = csv_data['Filename'].tolist()
             #options = csv_data[['Apex', 'nii_in_inputdir', 'mat_in_inputdir']].values.tolist()
-            options = csv_data[['Apex', 'nii_in_inputdir', 'mat_in_inputdir']].to_dict(orient='records')
+            options = csv_data[['Filename', 'Apex', 'nii_in_inputdir', 'mat_in_inputdir']].to_dict(orient='records')
             #where is apex, whether you want to save nii, whether you want to save mat in input dir
 
             common_path = os.path.commonpath(files)
@@ -253,7 +269,7 @@ def get_edge(input_image, mask, norm_max):
 
 
 
-def select_folder(GV):
+def select_folderX(GV):
 
     def get_nii_files(folder_selected, keyword):
         nii_files = []
@@ -316,6 +332,81 @@ def select_folder(GV):
                 f.write(ff + ',2,1,1\n')
         log_message(GV.log_box, f"Please edit {f_name} for segmentation.")
 
+
+
+import os
+import glob
+import time
+from tkinter import filedialog, simpledialog, messagebox
+
+def select_folder(GV):
+    def get_nii_files(folder_selected, keyword):
+        nii_files = []
+        for root, _, files in os.walk(folder_selected):
+            nii_files.extend(glob.glob(os.path.join(root, '*.nii*')))
+
+        if keyword == '':
+            ffs = nii_files
+        else:
+            include_list, exclude_list = extract_keywords(keyword)
+
+            ffs = []
+            for ff in nii_files:
+                got_file = False
+                for keyword in include_list:
+                    if keyword in ff:
+                        got_file = True
+                        break
+                for keyword in exclude_list:
+                    if keyword in ff:
+                        got_file = False
+                        break
+                if got_file: ffs.append(ff)
+
+        return ffs
+
+    def extract_keywords(string):
+        include = []
+        exclude = []
+        string = string.replace(' ', '')
+        words = string.split(',')
+        for word in words:
+            word = word.strip()
+            if word.startswith('+'):
+                include.append(word[1:])
+            elif word.startswith('-'):
+                exclude.append(word[1:])
+        
+        return include, exclude
+
+    folder_selected = filedialog.askdirectory()
+    keyword = simpledialog.askstring("Keyword Input",
+                                     "Keyword to include and then exclude. e.g., +CINE4D,-mask.",
+                                     initialvalue="+ES.nii,+ED.nii,-mask")
+    
+    if not folder_selected: 
+        return 0
+
+    ffs = get_nii_files(folder_selected, keyword)      
+
+    # 提問是否將結果存入原始資料夾
+    save_to_orig = messagebox.askyesno("Save to Original Folder", "Do you want to save the *.mat results to the original folder?")
+    save_mat = 1 if save_to_orig else 0
+    
+    # 提問是否輸出 .nii.gz 格式
+    save_as_gz = messagebox.askyesno("Save as .nii.gz", "Do you want to output *.nii.gz format to the original folder?")
+    save_nii = 1 if save_as_gz else 0
+
+    log_message(GV.log_box, f"Found {len(ffs)}.")
+    if len(ffs) > 0:
+        timestamp = time.strftime("%y%m%d_%H%M%S")
+        f_name = os.path.join(GV.csv_path, f'files_{timestamp}.csv')
+        
+        with open(f_name, 'w') as f:
+            f.write('Filename,Apex,mat_in_inputdir,nii_in_inputdir\n')
+            for ff in ffs:
+                f.write(ff + f',2,{save_mat},{save_nii}\n')
+        log_message(GV.log_box, f"Please edit {f_name} for segmentation.")
 
 
 def create_padded_mosaic(emp, time_frame=0, aspect_ratio=0.66):
