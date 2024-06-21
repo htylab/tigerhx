@@ -197,7 +197,8 @@ def init_app(application_path):
     default_models = ['cine4d_v0001_xyz_mms12.onnx',
                     'cine4d_v0002_xyz_mms12acdc.onnx',
                     'cine4d_v0003_xy_mms12acdc.onnx',
-                    'cine4d_v0004_xy_retrain.onnx']
+                    'cine4d_v0004_xy_retrain.onnx',
+                    'cine4d_v0005_xy_cineT1map.onnx']
 
     for m0 in default_models:
         model_file = join(model_path, m0)
@@ -356,3 +357,4 @@ def create_padded_mosaic(emp, time_frame=0, aspect_ratio=0.66):
     padded_mosaic = np.pad(mosaic, padding, mode='constant', constant_values=0)
     
     return padded_mosaic
+

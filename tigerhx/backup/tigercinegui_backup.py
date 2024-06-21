@@ -27,37 +27,32 @@ output_path = join(application_path, 'output')
 sample_path = join(application_path, 'csv')
 init_app(application_path)
 
-class GlobalVariables:
-    def __init__(self):
-        self.log_box = None
-        self.root = None
-        self.progress_bar = None
-        self.display_type_combo = None
-        self.colormap_combo = None
-        self.data = None
-        self.fig = None
-        self.ax = None
-        self.canvas = None
-        self.im = None
-        self.nii_files_listbox = None
-        self.seg = None
-        self.norm_max = None
-        self.canvas_widget = None
-        self.stop_event = threading.Event()
-
-# Initialize the global variables
-GV = GlobalVariables()
+# Global variables
+log_box = None
+root = None
+progress_bar = None
+display_type_combo = None
+colormap_combo = None
+data = None  # Ensure data is globally accessible
+fig, ax = None, None
+canvas = None
+im = None
+nii_files_listbox = None
+seg = None
+norm_max = None
+canvas_widget = None
+stop_event = threading.Event()
 
 def on_go():
-    global GV
-    GV.stop_event.clear()
+    global progress_bar, stop_event
+    stop_event.clear()
 
-    selected_model = GV.combo.get()
+    selected_model = combo.get()
     if selected_model:
         model_ff = os.path.join(model_path, selected_model)
-        log_message(GV.log_box, "Processing started...")
-        GV.progress_bar.pack(padx=10, pady=10, fill=tk.X)
-        GV.root.update()  # Ensure the main window stays updated
+        log_message(log_box, "Processing started...")
+        progress_bar.pack(padx=10, pady=10, fill=tk.X)
+        root.update()  # Ensure the main window stays updated
 
         # Introduce file selection dialog
         filetypes = [("All supported files", "*.csv *.nii *.nii.gz"),
@@ -66,12 +61,13 @@ def on_go():
         default_dir = os.path.join(application_path, 'csv')
         selected_file = filedialog.askopenfilename(initialdir=default_dir, filetypes=filetypes)
 
-        files, slice_select, common_path = run_program_gui_interaction(selected_file, GV.log_box, GV.root)
+
+        files, slice_select, common_path = run_program_gui_interaction(selected_file, log_box, root)
 
         threading.Thread(target=process_files_multithreaded,
-                         args=(files, slice_select, model_ff, common_path, GV.stop_event)).start()
+                         args=(files, slice_select, model_ff, common_path, stop_event)).start()
     else:
-        log_message(GV.log_box, "No Selection: Please select a model from the list.")
+        log_message(log_box, "No Selection: Please select a model from the list.")
 
 def process_files_multithreaded(files, slice_select, model_ff, common_path, stop_event):
     from scipy.ndimage import zoom
@@ -103,22 +99,32 @@ def process_files_multithreaded(files, slice_select, model_ff, common_path, stop
         if len(img.shape) == 3:
             img = img[..., None]
             voxel_size = list(voxel_size) + [1]
-        log_message(GV.log_box, f'{num + 1}/{len(files)}: Predicting {basename(file)} ......')
+        log_message(log_box, f'{num + 1}/{len(files)}: Predicting {basename(file)} ......')
 
-        # original 
-        emp = predict_cine4d(img, model_ff, GV.progress_bar, GV.root, stop_event)
+
+        # 調整解析度至(1, 1, original_spacing[2], original_spacing[3])
+        #new_spacing = (1, 1, voxel_size[2], voxel_size[3])
+        #resampled_img, zoom_factors = resample(img, voxel_size, new_spacing, order=3)
+        #mask = predict_cine4d(resampled_img, model_ff, progress_bar, root, stop_event)
+        #emp = resample_back(mask, zoom_factors, order=0)
+
+
+        #original 
+        emp = predict_cine4d(img, model_ff, progress_bar, root, stop_event)
 
         if stop_event.is_set():
             stopped = True
             break
         
-        log_message(GV.log_box, f'Selected slice for apex:  {slice_select[num]}/{img.shape[2] - 1}')
-        log_message(GV.log_box, f'Creating AHA segments.........')
+        log_message(log_box, f'Selected slice for apex:  {slice_select[num]}/{img.shape[2] - 1}')
+        log_message(log_box, f'Creating AHA segments.........')
 
         LVM = emp * 0
         nseg = 6
-        GV.progress_bar['value'] = 0  # Reset progress bar for inner loop
-        GV.progress_bar['maximum'] = LVM.shape[2]
+        progress_bar['value'] = 0  # Reset progress bar for inner loop
+        progress_bar['maximum'] = LVM.shape[2]
+
+
 
         for i in range(LVM.shape[2]):
             if stop_event.is_set():
@@ -133,8 +139,8 @@ def process_files_multithreaded(files, slice_select, model_ff, common_path, stop
                     LVM[..., i, j] = (emp[..., i, j] == 2) * 1
 
             # Update the progress bar for the inner loop
-            GV.progress_bar['value'] = i + 1
-            GV.root.update_idletasks()  # Ensure the GUI updates
+            progress_bar['value'] = i + 1
+            root.update_idletasks()  # Ensure the GUI updates
 
         Seg_AHA = emp.copy()
         Seg_AHA[LVM > 0] = LVM[LVM > 0] + 7
@@ -157,20 +163,20 @@ def process_files_multithreaded(files, slice_select, model_ff, common_path, stop
         
         dict['model'] = basename(model_ff)
         savemat(f'./output/{name}_pred_{onnx_version}.mat', dict, do_compression=True)
-        log_message(GV.log_box, f'{num + 1}/{len(files)}: {basename(file)} finished ......')
-        GV.root.after(0, update_mat_listbox)
+        log_message(log_box, f'{num + 1}/{len(files)}: {basename(file)} finished ......')
+        root.after(0, update_mat_listbox)
 
     if stopped:
-        log_message(GV.log_box, f'Jobs stopped.........')
+        log_message(log_box, f'Jobs stopped.........')
     else:
-        log_message(GV.log_box, f'All job finished.........')
-    GV.progress_bar['value'] = 0
-    GV.root.update_idletasks()  # Ensure the GUI updates
-    GV.root.after(0, update_mat_listbox)
+        log_message(log_box, f'All job finished.........')
+    progress_bar['value'] = 0
+    root.update_idletasks()  # Ensure the GUI updates
+    root.after(0, update_mat_listbox)
 
 
 def on_mat_select(event):
-    global GV
+    global seg, data
     widget = event.widget
     selection = widget.curselection()
     if selection:
@@ -178,80 +184,85 @@ def on_mat_select(event):
         if selected_mat:
             mat_path = os.path.join(output_path, selected_mat)
             try:
-                GV.data = loadmat(mat_path)
-                selected_type = GV.display_type_combo.get()
+                data = loadmat(mat_path)
+                selected_type = display_type_combo.get()
                 on_display_type_change(0)
-                log_message(GV.log_box, f"Showing {selected_mat}")
-                log_message(GV.log_box, f"{selected_type} matrix size: {GV.seg.shape}")                
+                log_message(log_box, f"Showing {selected_mat}")
+                log_message(log_box, f"{selected_type} matrix size: {seg.shape}")                
                 
-                if 'model' in GV.data:
-                    model_name = GV.data['model'][0]  # from .mat file, the string stored into a cell array
-                    log_message(GV.log_box, f"Predicted using {model_name}")
+                if 'model' in data:
+                    model_name = data['model'][0]  # from .mat file, the string stored into a cell array
+                    log_message(log_box, f"Predicted using {model_name}")
             except Exception as e:
-                log_message(GV.log_box, f"An error occurred: {e}")
+                log_message(log_box, f"An error occurred: {e}")
 
 
 def on_display_type_change(event):
-    global GV
+    global seg, data, norm_max
     
-    if GV.data is not None:
-        GV.norm_max = np.max(GV.data['input'][GV.data['Seg']==1])
-        if GV.norm_max == 0:
-            GV.norm_max = np.max(GV.data['input'])
-        selected_type = GV.display_type_combo.get()
+    if data is not None:
+
+        norm_max = np.max(data['input'][data['Seg']==1])
+        if norm_max == 0:
+            np.max(data['input'])
+        selected_type = display_type_combo.get()
 
         if selected_type == 'edge':
-            GV.seg = get_edge(GV.data['input'], GV.data['Seg'], GV.norm_max)
+            seg = get_edge(data['input'], data['Seg'], norm_max)
         elif selected_type == 'edge_crop':
-            GV.seg = get_edge(GV.data['input_crop'], GV.data['Seg_crop'], GV.norm_max)
+            seg = get_edge(data['input_crop'], data['Seg_crop'], norm_max)
         else:                                  
-            GV.seg = GV.data[selected_type]
-        show_montage(GV.seg)
-        update_time_slider(GV.seg)  # Adapt the range of the time points
+            seg = data[selected_type]
+        show_montage(seg)
+        update_time_slider(seg)  # Adapt the range of the time points
     try:
         pass
     except:
-        log_message(GV.log_box, f"Select a correct result file....")
+        log_message(log_box, f"Select a correct result file....")
 
 def on_colormap_change(event):
-    global GV
-    if GV.seg is not None:
-        show_montage(GV.seg)  # Redraw the figure with the selected colormap
+    if seg is not None:
+        show_montage(seg)  # Redraw the figure with the selected colormap
 
 def show_montage(emp, time_frame=0):
-    global GV
+    global fig, ax, canvas, im, norm_max
     plt.close('all')  # Close all previous figures
 
     # Resize the mosaic to 400x600
     height = 300
     width = 600
 
+
     # Initialize the figure and axes if they do not exist
-    if GV.fig is None or GV.ax is None:
-        GV.fig, GV.ax = plt.subplots(figsize=(width/100, height/100), dpi=100)
-        GV.ax.axis('off')  # Hide the axes
-        GV.ax = GV.fig.add_axes([0, 0, 1, 1])  # Remove all margins and padding
-        GV.ax.set_facecolor('black')
-        GV.fig.set_facecolor('black')
+    if fig is None or ax is None:
+        fig, ax = plt.subplots(figsize=(width/100, height/100), dpi=100)
+        ax.axis('off')  # Hide the axes
+        ax = fig.add_axes([0, 0, 1, 1])  # Remove all margins and padding
+        ax.set_facecolor('black')
+        fig.set_facecolor('black')
 
     # Clear previous canvas content
-    for widget in GV.canvas_frame.winfo_children():
+    for widget in canvas_frame.winfo_children():
         widget.destroy()
 
-    cmap = GV.colormap_combo.get()  # Get the selected colormap
+    
 
-    # Create the padded mosaic
-    padded_mosaic = create_padded_mosaic(emp, time_frame, height / width)
-    selected_type = GV.display_type_combo.get()
+    cmap = colormap_combo.get()  # Get the selected colormap
+
+
+    #width = canvas.winfo_width()
+    #height = canvas.winfo_height()
+    padded_mosaic = create_padded_mosaic(emp, time_frame, height/width)
+    selected_type = display_type_combo.get()
     if 'edge' in selected_type:
         newmosaic = padded_mosaic.copy()
         edge = (newmosaic == 255)
         newmosaic[edge] = 0
-
+        
         mosaic_resized = resize(newmosaic, (height, width), order=0, preserve_range=True).astype(int)
         edge = resize(edge, (height, width), order=0, preserve_range=True)
         mosaic_resized[edge] = 255
-
+        
         base_cmap = plt.get_cmap(cmap)
         base_colors = base_cmap(np.arange(256))
         base_colors[255] = (1, 0, 0, 1)
@@ -261,75 +272,76 @@ def show_montage(emp, time_frame=0):
     else:
         mosaic_resized = resize(padded_mosaic, (height, width))
         display_min = emp.min()
-        display_max = GV.norm_max
+        display_max = norm_max
 
     if ('Seg' in selected_type) or (selected_type in ['RV', 'LV', 'LVM']):
         display_min = emp.min()
         display_max = emp.max()
 
-    if GV.im is None:
-        GV.im = GV.ax.imshow(mosaic_resized, cmap=cmap, interpolation='nearest')
-        GV.im.set_clim(vmin=display_min, vmax=display_max)
+    if im is None:
+        im = ax.imshow(mosaic_resized, cmap=cmap, interpolation='nearest')
+        im.set_clim(vmin=display_min, vmax=display_max)
     else:
-        GV.im.set_data(mosaic_resized)
-        GV.im.set_cmap(cmap)
-        GV.im.set_clim(vmin=display_min, vmax=display_max)
+        im.set_data(mosaic_resized)
+        im.set_cmap(cmap)
+        im.set_clim(vmin=display_min, vmax=display_max)
 
-    GV.canvas = FigureCanvasTkAgg(GV.fig, master=GV.canvas_frame)
-    GV.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=False)
-    GV.canvas.draw()
+    canvas = FigureCanvasTkAgg(fig, master=canvas_frame)
+    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=False)
+    canvas.draw()
 
 
 def update_montage(time_frame):
-    global GV
-    show_montage(GV.seg, time_frame)
+    global seg
+    show_montage(seg, time_frame)
 
 def update_time_slider(emp):
-    global GV
     if len(emp.shape) == 3: emp = emp[..., None]
     max_time_frame = emp.shape[3] - 1  # Get the maximum time frame
-    GV.time_slider.config(to=max_time_frame)  # Update the slider's range
-    GV.time_slider.set(0)  # Set initial value to 0
+    time_slider.config(to=max_time_frame)  # Update the slider's range
+    time_slider.set(0)  # Set initial value to 0
 
 def update_mat_listbox():
-    global GV
     mat_files = list_mat_files(output_path)
-    GV.mat_listbox.delete(0, tk.END)
+    mat_listbox.delete(0, tk.END)
     for file in mat_files:
-        GV.mat_listbox.insert(tk.END, file)
+        mat_listbox.insert(tk.END, file)
 
 def on_closing():
-    global GV
     plt.close('all')  # Close all matplotlib figures
-    GV.root.destroy()
+    root.destroy()
     sys.exit()  # Ensure the program ends
 
+
+
+
 def stop_processing():
-    global GV
-    log_message(GV.log_box, "Processing stopped by user.")
-    GV.stop_event.set()
+    log_message(log_box, "Processing stopped by user.")
+    stop_event.set()
 
 # Create the main window
-GV.root = tk.Tk()
-GV.root.title("TigerHx GUI (NTUST X NTHU)")
+root = tk.Tk()
+root.title("TigerHx GUI")
 
 # Set default font size
 default_font = ("Arial", 10)
-GV.root.option_add("*Font", default_font)
+root.option_add("*Font", default_font)
 
 # Adjust the size of the main window
-screen_width = GV.root.winfo_screenwidth()
-screen_height = GV.root.winfo_screenheight()
-window_width = 1100
+screen_width = root.winfo_screenwidth()
+screen_height = root.winfo_screenheight()
+window_width = 1200
 window_height = 600
-GV.root.geometry(f"{window_width}x{window_height}")
+root.geometry(f"{window_width}x{window_height}")
 
 # Handle window close event
-GV.root.protocol("WM_DELETE_WINDOW", on_closing)
+root.protocol("WM_DELETE_WINDOW", on_closing)
 
 # Create a frame for the combo box and label
-frame = tk.Frame(GV.root)
+frame = tk.Frame(root)
 frame.pack(padx=10, pady=10, side=tk.LEFT, fill=tk.Y)
+
+
 
 # Create a frame for the combo box and "Go" button
 combo_frame = tk.Frame(frame)
@@ -340,9 +352,9 @@ label = tk.Label(combo_frame, text="Model")
 label.pack(side=tk.LEFT, pady=5)
 
 # Create a combo box to display the ONNX files
-GV.combo = ttk.Combobox(combo_frame, values=list_onnx_files(model_path), width=30)
-GV.combo.pack(side=tk.LEFT, padx=5)
-GV.combo.current(0)  # Select the first ONNX file by default
+combo = ttk.Combobox(combo_frame, values=list_onnx_files(model_path), width=30)
+combo.pack(side=tk.LEFT, padx=5)
+combo.current(0)  # Select the first ONNX file by default
 
 # Create a frame for the combo box and "Go" button
 button_frame = tk.Frame(frame)
@@ -364,12 +376,12 @@ stop_button.pack(side=tk.LEFT, padx=5)
 log_frame = tk.Frame(frame)
 log_frame.pack(padx=10, pady=10)
 
-GV.log_box = tk.Text(log_frame, width=50, height=10, wrap=tk.WORD)
-GV.log_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+log_box = tk.Text(log_frame, width=50, height=10, wrap=tk.WORD)
+log_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-log_scrollbar = tk.Scrollbar(log_frame, orient=tk.VERTICAL, command=GV.log_box.yview)
+log_scrollbar = tk.Scrollbar(log_frame, orient=tk.VERTICAL, command=log_box.yview)
 log_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-GV.log_box.config(yscrollcommand=log_scrollbar.set)
+log_box.config(yscrollcommand=log_scrollbar.set)
 
 # Create a frame for the listbox and display type combo box
 listbox_frame = tk.Frame(frame)
@@ -387,48 +399,57 @@ display_type_label.pack(side=tk.LEFT)
 display_types = ['input', 'edge', 'Seg', 'SegAHA',
                  'input_crop', 'edge_crop', 'Seg_crop',
                  'SegAHA_crop', 'LV', 'LVM', 'RV']
-GV.display_type_combo = ttk.Combobox(display_type_frame, values=display_types, width=16)
-GV.display_type_combo.pack(side=tk.LEFT, padx=5)
-GV.display_type_combo.current(0)  # Set default display type to 'Seg'
-GV.display_type_combo.bind("<<ComboboxSelected>>", on_display_type_change)
+display_type_combo = ttk.Combobox(display_type_frame, values=display_types, width=16)
+display_type_combo.pack(side=tk.LEFT, padx=5)
+display_type_combo.current(0)  # Set default display type to 'Seg'
+display_type_combo.bind("<<ComboboxSelected>>", on_display_type_change)
 
 # Create a label for the colormap combo box
 colormap_label = tk.Label(display_type_frame, text="Colormap")
 colormap_label.pack(side=tk.LEFT, padx=5)
 
 # Create a combo box for selecting colormap
-GV.colormap_combo = ttk.Combobox(display_type_frame, values=['gray', 'viridis'], width=10)
-GV.colormap_combo.pack(side=tk.LEFT, padx=5)
-GV.colormap_combo.current(0)  # Set default colormap to 'gray'
-GV.colormap_combo.bind("<<ComboboxSelected>>", on_colormap_change)
+colormap_combo = ttk.Combobox(display_type_frame, values=['gray', 'viridis'], width=10)
+colormap_combo.pack(side=tk.LEFT, padx=5)
+colormap_combo.current(0)  # Set default colormap to 'gray'
+colormap_combo.bind("<<ComboboxSelected>>", on_colormap_change)
+
+
+
 
 # Create a scrollbar for the listbox
 listbox_scrollbar = tk.Scrollbar(listbox_frame, orient=tk.VERTICAL)
 listbox_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
 # Create a listbox for the .mat files
-GV.mat_listbox = tk.Listbox(listbox_frame, width=40, height=10, yscrollcommand=listbox_scrollbar.set)
-GV.mat_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-GV.mat_listbox.bind('<<ListboxSelect>>', on_mat_select)
+mat_listbox = tk.Listbox(listbox_frame, width=40, height=5, yscrollcommand=listbox_scrollbar.set)
+mat_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+mat_listbox.bind('<<ListboxSelect>>', on_mat_select)
 
 # Configure the scrollbar to work with the listbox
-listbox_scrollbar.config(command=GV.mat_listbox.yview)
+listbox_scrollbar.config(command=mat_listbox.yview)
 
 # Create a progress bar
-GV.progress_bar = ttk.Progressbar(frame, mode='determinate')
-GV.progress_bar.pack(side=tk.TOP, fill=tk.BOTH)
+progress_bar = ttk.Progressbar(frame, mode='determinate')
+progress_bar.pack(side=tk.TOP, fill=tk.BOTH)
 
 # Create a frame for the canvas and slider
-canvas_slider_frame = tk.Frame(GV.root, width=650, height=450)
-canvas_slider_frame.pack(padx=2, pady=10, side=tk.LEFT, fill=tk.BOTH, expand=False)
+canvas_slider_frame = tk.Frame(root, width=650, height=450)
+canvas_slider_frame.pack(padx=2, pady=10, side=tk.RIGHT, fill=tk.BOTH, expand=False)
 
 # Create a frame for the canvas
-GV.canvas_frame = tk.Frame(canvas_slider_frame, width=600, height=300, bg='black')  # Set background to black and fix size
-GV.canvas_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False)
+canvas_frame = tk.Frame(canvas_slider_frame, width=600, height=300, bg='black')  # Set background to black and fix size
+canvas_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
+
+
+
+# Create spacer frame
+spacer_frame = tk.Frame(canvas_slider_frame, width=10)
+spacer_frame.pack(side=tk.LEFT, fill=tk.Y)
 
 # Create the time slider
-GV.time_slider = tk.Scale(canvas_slider_frame, from_=0, to=0, orient=tk.HORIZONTAL, command=lambda val: update_montage(int(val)))
-GV.time_slider.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+time_slider = tk.Scale(canvas_slider_frame, from_=0, to=0, orient=tk.VERTICAL, command=lambda val: update_montage(int(val)))
+time_slider.pack(side=tk.LEFT, fill=tk.Y)
 
 # Initial update of the .mat listbox
 update_mat_listbox()
@@ -438,14 +459,14 @@ welcome_msg = f'''\n* Step 1: Click GenCSV to search Cine NIFTI files.
 * Step 3: Edit the CSV file and assign APEX numbers.
 * Step 4: Click 'RUN' to start the automatic segmentation.
 * Step 5: Click the prediction files to inspect the results.'''
-log_message(GV.log_box, welcome_msg)
+log_message(log_box, welcome_msg)
 
 welcome_msg = f'''\n* 1: 點選GenCSV去搜尋 Cine NIfTI 資料集
 * 2: TigerHx 將在 {sample_path} 生成一個 CSV 檔案
 * 3: 編輯 CSV 檔案並分配 APEX 編號
 * 4: 點擊 RUN 開始使用 TigerHx 進行自動心臟分割
 * 5: 點擊預測檔案以檢查結果\n'''
-log_message(GV.log_box, welcome_msg)
+log_message(log_box, welcome_msg)
 
 # Run the application
-GV.root.mainloop()
+root.mainloop()
