@@ -451,3 +451,11 @@ def create_padded_mosaic(emp, time_frame=0, aspect_ratio=0.66):
     
     return padded_mosaic
 
+
+def get_ESED(LV):
+    import numpy as np
+    curve = np.sum(LV, axis=(0, 1, 2))
+    ES_t = np.argmin(curve)
+    ED_t = np.argmax(curve)
+    return ES_t, ED_t
+

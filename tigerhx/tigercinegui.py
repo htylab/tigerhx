@@ -155,14 +155,23 @@ def process_files_multithreaded(files, option_list, model_ff, common_path, stop_
         x0, x1 = max(0, xx.min() - 10), min(mask.shape[0], xx.max() + 10)
         y0, y1 = max(0, yy.min() - 10), min(mask.shape[1], yy.max() + 10)
 
-        dict = {'input': img, 'Seg': Seg, 'SegAHA': Seg_AHA,
+        rdict = {'input_img': img, 'Seg': Seg, 'SegAHA': Seg_AHA,
                 'input_crop': img[x0:x1, y0:y1], 'Seg_crop': Seg[x0:x1, y0:y1],
                 'SegAHA_crop': Seg_AHA[x0:x1, y0:y1],
                 'LV': LV, 'LVM': LVM, 'RV': RV,
                 'voxel_size': np.array(voxel_size)}
         
-        dict['model'] = basename(model_ff)
-        savemat(f'./output/{name}_pred_{onnx_version}.mat', dict, do_compression=True)
+        rdict['model'] = basename(model_ff)
+
+        if LV.shape[3] > 1: # multi-frame
+            ES_t, ED_t = get_ESED(LV)
+            rdict['ES_frame_0base'] = ES_t
+            rdict['ED_frame_0base'] = ES_t
+            rdict['Seg_ES'] = Seg[..., ES_t]
+            rdict['Seg_ED'] = Seg[..., ED_t]
+            rdict['SegAHA_ES'] = Seg_AHA[..., ES_t]
+            rdict['SegAHA_ED'] = Seg_AHA[..., ED_t]
+        savemat(f'./output/{name}_pred_{onnx_version}.mat', rdict, do_compression=True)
 
         if option['mat_in_inputdir']:
             mat_f = option['Filename']
@@ -213,13 +222,13 @@ def on_display_type_change(event):
     global GV
     
     if GV.data is not None:
-        GV.norm_max = np.max(GV.data['input'][GV.data['Seg']==1])
+        GV.norm_max = np.max(GV.data['input_img'][GV.data['Seg']==1])
         if GV.norm_max == 0:
-            GV.norm_max = np.max(GV.data['input'])
+            GV.norm_max = np.max(GV.data['input_img'])
         selected_type = GV.display_type_combo.get()
 
         if selected_type == 'edge':
-            GV.seg = get_edge(GV.data['input'], GV.data['Seg'], GV.norm_max)
+            GV.seg = get_edge(GV.data['input_img'], GV.data['Seg'], GV.norm_max)
         elif selected_type == 'edge_crop':
             GV.seg = get_edge(GV.data['input_crop'], GV.data['Seg_crop'], GV.norm_max)
         else:                                  
@@ -409,7 +418,7 @@ display_type_label = tk.Label(display_type_frame, text="Figure type")
 display_type_label.pack(side=tk.LEFT)
 
 # Create a combo box for selecting display type
-display_types = ['input', 'edge', 'Seg', 'SegAHA',
+display_types = ['input_img', 'edge', 'Seg', 'SegAHA',
                  'input_crop', 'edge_crop', 'Seg_crop',
                  'SegAHA_crop', 'LV', 'LVM', 'RV']
 GV.display_type_combo = ttk.Combobox(display_type_frame, values=display_types, width=16)
