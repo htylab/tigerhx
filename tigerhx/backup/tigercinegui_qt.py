@@ -1,10 +1,12 @@
 import sys
 import glob
 import numpy as np
-from os.path import basename
+from os.path import basename, join
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QComboBox, QPushButton, QTextEdit, QListWidget, QVBoxLayout, QHBoxLayout, QWidget, QSizeGrip, QSpacerItem, QSizePolicy, QSlider, QProgressBar
 from PyQt5.QtGui import QPixmap, QImage, QFont, QColor, QPalette
 from PyQt5.QtCore import Qt, QPoint
+from scipy.io import loadmat, savemat
+from skimage.transform import resize
 
 class CustomTitleBar(QWidget):
     def __init__(self, parent=None):
@@ -210,7 +212,10 @@ class TigerHxGUI(QMainWindow):
         self.colormap_label.setFont(QFont("Arial", 11))
         self.colormap_combo = QComboBox()
         self.colormap_combo.setFont(QFont("Arial", 11))
-        self.colormap_combo.addItems(["vivid", "Option2", "Option3"])
+        self.colormap_combo.addItems(["vivid", "gray"])
+
+        self.figure_combo.currentIndexChanged.connect(self.on_display_type_change)
+        self.colormap_combo.currentIndexChanged.connect(self.on_colormap_change)
 
         figure_layout.addWidget(self.figure_label)
         figure_layout.addWidget(self.figure_combo)
@@ -222,13 +227,14 @@ class TigerHxGUI(QMainWindow):
         # List area
         self.list_widget = QListWidget()
         self.list_widget.setFont(QFont("Arial", 11))
+        self.list_widget.itemSelectionChanged.connect(self.on_mat_select)
         self.load_mat_files()
 
         left_layout.addWidget(self.list_widget)
 
         # Progress bar
         self.progress_bar = QProgressBar()
-        self.progress_bar.setValue(50)
+        self.progress_bar.setValue(0)
         left_layout.addWidget(self.progress_bar)
 
         # Image display area on the right
@@ -242,6 +248,7 @@ class TigerHxGUI(QMainWindow):
         self.vertical_slider.setMinimum(0)
         self.vertical_slider.setMaximum(100)
         self.vertical_slider.setValue(50)
+        self.vertical_slider.valueChanged.connect(self.update_montage)
         right_layout.addWidget(self.vertical_slider)
 
         # Add left, center (image), and right layouts to the main layout
@@ -284,6 +291,105 @@ class TigerHxGUI(QMainWindow):
     def on_go_button_clicked(self):
         self.text_edit.append("Go button clicked!")
         self.display_random_image()
+
+    def on_mat_select(self):
+        selected_mat = self.list_widget.currentItem().text()
+        if selected_mat:
+            mat_path = join('output', selected_mat)
+            try:
+                data = loadmat(mat_path)
+                selected_type = self.figure_combo.currentText()
+                if selected_type in data:
+                    self.seg = data[selected_type]
+                    self.text_edit.append(f"Showing {selected_mat}")
+                    self.text_edit.append(f"{selected_type} matrix size: {self.seg.shape}")
+                    self.show_montage(self.seg)
+                    self.update_time_slider(self.seg)  # Adapt the range of the time points
+                else:
+                    self.text_edit.append(f"'{selected_type}' not found in {selected_mat}")
+                
+                if 'model' in data:
+                    model_name = data['model'][0]  # from .mat file, the string stored into a cell array
+                    self.text_edit.append(f"Predicted using {model_name}")
+            except Exception as e:
+                self.text_edit.append(f"An error occurred: {e}")
+
+    def on_display_type_change(self):
+        self.update_montage()
+
+    def on_colormap_change(self):
+        self.update_montage()
+
+    def show_montage(self, emp, time_frame=0):
+        if len(emp.shape) == 3:
+            emp = emp[..., None]
+
+        # Determine grid size for the mosaic to match the aspect ratio 400:600
+        slice_shape = emp[:, :, 0, time_frame].shape
+        aspect_ratio = 600 / 400
+        num_slices = emp.shape[2]
+        num_cols = int(np.ceil(np.sqrt(num_slices / aspect_ratio)))
+        num_rows = int(np.ceil(num_slices / num_cols))
+
+        # Initialize an empty array for the mosaic
+        mosaic = np.zeros((num_rows * slice_shape[0], num_cols * slice_shape[1]))
+
+        # Fill the mosaic with slices
+        for i in range(num_slices):
+            row = i // num_cols
+            col = i % num_cols
+            mosaic[row * slice_shape[0]:(row + 1) * slice_shape[0], col * slice_shape[1]:(col + 1) * slice_shape[1]] = emp[:, :, i, time_frame]
+
+        # Pad the mosaic to maintain aspect ratio 400 (width) x 600 (height)
+        mosaic_height, mosaic_width = mosaic.shape
+        target_aspect_ratio = 600 / 400
+
+        if mosaic_height / mosaic_width > target_aspect_ratio:
+            new_width = int(mosaic_height / target_aspect_ratio)
+            pad_width = new_width - mosaic_width
+            padding = ((0, 0), (pad_width // 2, pad_width - pad_width // 2))
+        else:
+            new_height = int(mosaic_width * target_aspect_ratio)
+            pad_height = new_height - mosaic_height
+            padding = ((pad_height // 2, pad_height - pad_height // 2), (0, 0))
+
+        padded_mosaic = np.pad(mosaic, padding, mode='constant', constant_values=0)
+
+        # Resize the mosaic to 400x600
+        mosaic_resized = resize(padded_mosaic, (600, 400), anti_aliasing=True)
+
+        colormap = self.colormap_combo.currentText()  # Get the selected colormap
+        if colormap == 'gray':
+            cmap = 'gray'
+        elif colormap == 'vivid':
+            cmap = 'viridis'  # Replace 'vivid' with an actual matplotlib colormap, like 'viridis'
+
+        # Convert numpy array to QImage
+        mosaic_resized = (mosaic_resized * 255).astype(np.uint8)
+        height, width = mosaic_resized.shape
+        q_image = QImage(mosaic_resized.data, width, height, width, QImage.Format_Grayscale8)
+
+        # Convert QImage to QPixmap and display
+        pixmap = QPixmap.fromImage(q_image)
+        self.image_label.setPixmap(pixmap)
+
+    def update_montage(self):
+        selected_mat = self.list_widget.currentItem().text()
+        if selected_mat:
+            mat_path = join('output', selected_mat)
+            data = loadmat(mat_path)
+            selected_type = self.figure_combo.currentText()
+            if selected_type in data:
+                self.seg = data[selected_type]
+                time_frame = self.vertical_slider.value()
+                self.show_montage(self.seg, time_frame)
+
+    def update_time_slider(self, emp):
+        if len(emp.shape) == 3:
+            emp = emp[..., None]
+        max_time_frame = emp.shape[3] - 1  # Get the maximum time frame
+        self.vertical_slider.setMaximum(max_time_frame)  # Update the slider's range
+        self.vertical_slider.setValue(0)  # Set initial value to 0
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
