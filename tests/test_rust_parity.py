@@ -162,6 +162,16 @@ def compare_nifti(a, b):
     np.testing.assert_array_equal(np.asarray(ia.dataobj), np.asarray(ib.dataobj))
 
 
+def assert_same(a, b, msg=''):
+    """Labels must be identical.  Image intensities may differ in the last
+    bit: with numpy < 2 nibabel applies scl_slope in float32, with numpy 2
+    (and in Rust) in float64."""
+    if a.dtype.kind == 'f':
+        np.testing.assert_allclose(a, b, rtol=1e-5, atol=0, err_msg=msg)
+    else:
+        np.testing.assert_array_equal(a, b, err_msg=msg)
+
+
 def compare_mat(a, b):
     ma, mb = loadmat(a), loadmat(b)
     keys = sorted(k for k in ma if not k.startswith('__'))
@@ -173,7 +183,7 @@ def compare_mat(a, b):
             continue
         assert va.dtype == vb.dtype, k
         assert va.shape == vb.shape, k
-        np.testing.assert_array_equal(va, vb, err_msg=k)
+        assert_same(va, vb, k)
 
 
 def compare_all(py_ws, rs_ws):
@@ -229,7 +239,7 @@ def test_display_volumes_match(runs, tmp_path, kind, crop):
     while b.ndim > 3 and b.shape[-1] == 1:
         b = b[..., 0]
     assert a.dtype == b.dtype
-    np.testing.assert_array_equal(a, b)
+    assert_same(a, b)
     np.testing.assert_allclose(expected.affine, got.affine, atol=1e-5)
 
 
