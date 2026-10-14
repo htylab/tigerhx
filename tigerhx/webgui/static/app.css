@@ -263,5 +263,6 @@ details summary { cursor: pointer; color: var(--ink-2); font-size: 12px; }
   .canvas-wrap { min-height: 420px; }
 }
 
-table.calib td { text-align: left; white-space: nowrap; }
+table.calib td { text-align: left; }
+table.calib th { width: 2.5em; }
 table.calib td button { margin-left: 4px; }

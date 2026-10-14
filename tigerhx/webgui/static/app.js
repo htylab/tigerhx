@@ -32,6 +32,7 @@ const I18N = {
     modelMissing: '（首次使用時下載）',
     calib: 'ED / ES 與基底校正', auto: '自動', manual: '手動', resetPhases: '恢復自動 ED/ES',
     useFrame: f => `用目前 frame（${f}）`, setSlice: k => `設為目前 slice（${k}）`, clear: '清除', all: '全部',
+    setTo: v => `設為 ${v}`,
     basalTitle: '基底起點：更靠 base 的 slice 不計入該時相的容積',
     edRule: 'ED 自動判定', edRuleMax: '最大 LV 容積', edRuleFirst: '第一個 frame（R 波觸發）',
     rule_max_volume: '最大容積', rule_first_frame: '第一個 frame', rule_min: '最小容積',
@@ -68,6 +69,7 @@ const I18N = {
     modelMissing: ' (downloaded on first use)',
     calib: 'ED / ES and basal slices', auto: 'auto', manual: 'manual', resetPhases: 'Automatic ED/ES',
     useFrame: f => `Use current frame (${f})`, setSlice: k => `Set to current slice (${k})`, clear: 'Clear', all: 'all',
+    setTo: v => `Set ${v}`,
     basalTitle: 'First basal slice: slices further towards the base are not counted in that phase',
     edRule: 'Automatic ED', edRuleMax: 'largest LV volume', edRuleFirst: 'first frame (R-wave triggered)',
     rule_max_volume: 'max volume', rule_first_frame: 'first frame', rule_min: 'min volume',
@@ -351,16 +353,16 @@ function renderCalib(c, force = false) {
   const cell = (ph, ch) => {
     const v = c.basal[ph][ch];
     return `<td>${v === null ? `<span class="muted">${esc(t('all'))}</span>` : `<b>${v}</b>`}
-      <button class="small" data-basal="${ph},${ch}" title="${esc(t('setSlice', k))}"${S.slice === null ? ' disabled' : ''}>⤓ ${k}</button>
+      <button class="small" data-basal="${ph},${ch}" title="${esc(t('setSlice', k))}"${S.slice === null ? ' disabled' : ''}>${esc(t('setTo', k))}</button>
       ${v === null ? '' : `<button class="small" data-basal-clear="${ph},${ch}" title="${esc(t('clear'))}">×</button>`}</td>`;
   };
   box.innerHTML = `
     <div class="chart-title">${esc(t('calib'))}</div>
     <table class="metrics calib">
       <tr><th>ED</th><td>frame <b>${c.ed}</b> ${src(c.ed_manual, rule)}</td>
-        <td><button class="small" data-phase="ed">${esc(t('useFrame', S.frame))}</button></td></tr>
+        <td><button class="small" data-phase="ed" title="${esc(t('useFrame', S.frame))}">${esc(t('setTo', S.frame))}</button></td></tr>
       <tr><th>ES</th><td>frame <b>${c.es}</b> ${src(c.es_manual, 'min')}</td>
-        <td><button class="small" data-phase="es">${esc(t('useFrame', S.frame))}</button></td></tr>
+        <td><button class="small" data-phase="es" title="${esc(t('useFrame', S.frame))}">${esc(t('setTo', S.frame))}</button></td></tr>
     </table>
     ${c.ed_manual !== null || c.es_manual !== null
       ? `<button class="small" data-phase="reset">${esc(t('resetPhases'))}</button>` : ''}
