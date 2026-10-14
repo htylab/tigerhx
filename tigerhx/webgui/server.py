@@ -151,7 +151,7 @@ class App:
     def set_apex(self, cid, apex_slice, base_first=None):
         p = self.project
         case = p.cases[cid]
-        if not pipeline.has_seg(p, case):
+        if case.status in ('queued', 'running') or not pipeline.has_seg(p, case):
             raise ValueError('case is not segmented')
         nz = case.shape[2] if case.shape else None
         if nz is not None and not 0 <= int(apex_slice) < nz:
