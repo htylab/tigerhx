@@ -129,3 +129,21 @@ def test_guitool_single_row_csv(tmp_path, cine):
     files, options, common = guitool.run_program_gui_interaction(p, Log(), None)
     assert files == [cine[0]] and options[0]['Apex'] == 5 and options[0]['nii_in_inputdir'] == 1
     assert os.path.relpath(files[0], common) == 'sub.01.cine.nii.gz'
+
+
+def test_concurrent_saves(tmp_path):
+    # two windows (or a background thread and the app) saving one workspace
+    a, b = Project(str(tmp_path / 'ws')), Project(str(tmp_path / 'ws'))
+    errors = []
+
+    def hammer(p):
+        try:
+            for _ in range(100):
+                p.save()
+        except Exception as e:  # noqa: BLE001
+            errors.append(e)
+    threads = [threading.Thread(target=hammer, args=(p,)) for p in (a, b, a)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert errors == []
+    assert sorted(os.listdir(tmp_path / 'ws')) == ['cases', 'project.json']  # no temp files left

@@ -5,6 +5,7 @@ import csv
 import io
 import os
 import re
+import threading
 from os.path import basename
 
 import nibabel as nib
@@ -127,10 +128,14 @@ def save_mat(path, rdict):
     """Written to a temporary file first, so an interrupted write (or a
     reader during a rewrite) never sees a truncated .mat."""
     from scipy.io import savemat
-    tmp = f'{path}.tmp'
-    with open(tmp, 'wb') as f:
-        savemat(f, rdict, do_compression=True)
-    os.replace(tmp, path)
+    tmp = f'{path}.{os.getpid()}.{threading.get_ident()}.tmp'
+    try:
+        with open(tmp, 'wb') as f:
+            savemat(f, rdict, do_compression=True)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
 
 
 CASE_COLUMNS = ['Filename', 'Apex', 'mat_in_inputdir', 'nii_in_inputdir']

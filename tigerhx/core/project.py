@@ -55,6 +55,11 @@ class Case:
         return f'{safe_name(self.name)[:60]}_{self.id[:6]}'
 
 
+def unique_tmp(path):
+    """A temporary name next to path that no other writer uses at the same time."""
+    return f'{path}.{os.getpid()}.{threading.get_ident()}.tmp'
+
+
 def case_id(path):
     return hashlib.sha1(abspath(path).encode('utf-8')).hexdigest()[:12]
 
@@ -108,7 +113,7 @@ class Project:
     def save(self):
         with self.lock:
             d = {'settings': self.settings, 'cases': [asdict(c) for c in self.cases.values()]}
-            tmp = self.file + '.tmp'
+            tmp = unique_tmp(self.file)  # another process may save the same workspace
             with open(tmp, 'w', encoding='utf-8') as f:
                 json.dump(d, f, ensure_ascii=False, indent=1)
             os.replace(tmp, self.file)
