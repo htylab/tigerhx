@@ -29,9 +29,11 @@ jobs:
             deps: onnxruntime scikit-image matplotlib certifi
             excludes: ''
           # the web GUI only needs numpy, nibabel, onnxruntime, scipy.ndimage/io
-          # (scipy.io.matlab pulls in scipy.sparse) and pywebview; leaving out the
-          # rest of scipy also drops matplotlib, Pillow and Tcl/Tk that scipy.stats
-          # would otherwise bring in.
+          # and pywebview; leaving out the rest of scipy also drops matplotlib,
+          # Pillow and Tcl/Tk that scipy.stats would otherwise bring in.
+          # scipy.io.matlab imports scipy.sparse, which (scipy 1.13) imports
+          # sparse.csgraph and sparse.linalg, so those stay. The smoke test below
+          # fails the build if something needed is left out.
           - py: tigerhxgui
             deps: onnxruntime certifi pywebview
             excludes: >-
@@ -39,7 +41,7 @@ jobs:
               setuptools pkg_resources distutils
               scipy.stats scipy.optimize scipy.integrate scipy.interpolate scipy.spatial
               scipy.signal scipy.odr scipy.cluster scipy.datasets scipy.misc scipy.fftpack
-              scipy.constants scipy.fft scipy.sparse.linalg scipy.sparse.csgraph
+              scipy.constants
 
     steps:
     - uses: actions/checkout@v4
