@@ -2501,7 +2501,7 @@ dependencies = [
 
 [[package]]
 name = "tigerhx-core"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "flate2",
  "ort",
@@ -2514,7 +2514,7 @@ dependencies = [
 
 [[package]]
 name = "tigerhx-gui"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "getrandom 0.3.4",
  "rfd",

@@ -1,0 +1,75 @@
+name: Rust GUI
+
+# The Rust core and GUI (rust/): unit tests and the comparison with the
+# Python core on Linux; the Windows executable, smoke-tested and uploaded as
+# an artifact (also used by release.yml).
+
+on:
+  push:
+    branches: [ "main", "claude/gifted-fermat-i039r8" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+  workflow_call:  # used by release.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: rust
+    - name: Cargo tests and builds
+      working-directory: rust
+      run: |
+        cargo test -p tigerhx-core
+        cargo build -p tigerhx-core --example parity
+        # browser-only build: the window needs WebKitGTK, not the API under test
+        cargo build -p tigerhx-gui --no-default-features
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Compare with the Python core
+      env:  # explicit paths, so a missing build fails instead of skipping
+        TIGERHX_RUST_PARITY: rust/target/debug/examples/parity
+        TIGERHX_RUST_GUI: rust/target/debug/tigerhxgui
+      run: |
+        python -m pip install --upgrade pip
+        pip install . onnxruntime onnx pytest
+        pytest -q -rs tests/test_rust_parity.py tests/test_rust_server.py
+
+  windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: rust
+    - name: Build
+      working-directory: rust
+      run: cargo build --release -p tigerhx-gui
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Smoke test the executable
+      run: |
+        python -m pip install --upgrade pip
+        pip install numpy nibabel scipy onnx
+        python tools/smoke_exe.py rust/target/release/tigerhxgui.exe
+    - name: Collect
+      shell: bash
+      run: |
+        mkdir dist
+        cp rust/target/release/tigerhxgui.exe dist/
+        # ONNX Runtime is linked statically when available; ship any DLL otherwise
+        shopt -s nullglob
+        for f in rust/target/release/*.dll; do cp "$f" dist/; done
+        ls -l dist
+    - uses: actions/upload-artifact@v4
+      with:
+        name: tigerhxgui-rust-windows-latest
+        path: dist/*

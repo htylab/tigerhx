@@ -13,7 +13,9 @@
 On Windows, download `tigerhxgui-<version>.zip`, unzip it and run
 `tigerhxgui.exe` (no installation; models are downloaded on first use). The
 window uses the Microsoft Edge WebView2 runtime, which Windows 10/11 normally
-already has. `tigercinegui-<version>.zip` is the previous Tk GUI.
+already has. `tigerhxgui-rust-<version>.zip` is the same GUI rebuilt in Rust
+(see *Rust GUI* below): one executable instead of the PyInstaller bundle.
+`tigercinegui-<version>.zip` is the previous Tk GUI.
 ### Install package
     pip install onnxruntime #for gpu version: onnxruntime-gpu
     pip install https://github.com/htylab/tigerhx/archive/main.zip
@@ -119,9 +121,30 @@ Pillow, Tcl/Tk), and `tools/smoke_exe.py` then runs the built `.exe` on a
 synthetic case, so a module that is needed but left out fails the build.
 
 To publish a release, run **Actions → Release → Run workflow** on `main` with
-a tag such as `v0.1.0`. It builds both executables and uploads them, zipped,
+a tag such as `v0.1.0`. It builds the executables and uploads them, zipped,
 to that release (creating the tag and release if needed; notes are taken from
 `doc/release-notes/<tag>.md` when present). It only runs when started by hand.
+
+### Rust GUI
+
+`rust/` holds a Rust version of the web GUI: `tigerhx-core` is a port of
+`tigerhx/core` (NIfTI, ONNX Runtime through `ort`, AHA, checks, legacy
+`.mat`, workspace) and `tigerhx-gui` builds `tigerhxgui`, which serves the same
+page and HTTP API as `tigerhx/webgui/server.py` (the files in
+`tigerhx/webgui/static` are embedded) in a native window. It uses the same
+workspace format, models folder (`models` next to the executable, or
+`TIGERHX_MODEL_DIR`) and command line options, so it can open a workspace of
+the Python GUI and vice versa.
+
+    cd rust
+    cargo build --release -p tigerhx-gui      # rust/target/release/tigerhxgui(.exe)
+
+`tests/test_rust_parity.py` runs the Python and Rust pipelines on phantoms and
+requires identical labels, AHA maps, checks, display volumes and `.mat`
+files; `tests/test_rust_server.py` is `test_server.py` against the executable.
+Both are skipped until the Rust builds exist (see `rust/README.md`), and run
+in `.github/workflows/rust-gui.yml`, which also builds and smoke-tests the
+Windows executable.
 
 
 # Label names:
