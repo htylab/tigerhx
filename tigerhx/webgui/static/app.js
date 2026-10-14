@@ -75,7 +75,7 @@ const I18N = {
     modelMissing: ' (downloaded on first use)',
     calib: 'ED / ES and slices', auto: 'auto', manual: 'manual', resetPhases: 'Automatic ED/ES',
     useFrame: f => `Use current frame (${f})`, setSlice: k => `Set to current slice (${k})`, clear: 'Clear', all: 'all',
-    setTo: v => `Set ${v}`,
+    setTo: v => `Set to ${v}`,
     exclTitle: 'Slices not counted', checksTitle: 'Worth checking',
     dontCount: ch => `Don't count this slice for ${ch}`, countAgain: ch => `Count for ${ch} again`,
     atSlice: (ph, f, k) => `Now ${ph} (frame ${f}) · slice ${k}`,
@@ -89,8 +89,9 @@ const I18N = {
     now: (f, k) => `Now: frame ${f} · slice ${k}`,
   },
 };
-let lang = 'zh';
-try { lang = localStorage.getItem('tigerhx_lang') || 'zh'; } catch (e) { /* storage blocked */ }
+let lang = 'en';
+try { lang = localStorage.getItem('tigerhx_lang') || 'en'; } catch (e) { /* storage blocked */ }
+if (!I18N[lang]) lang = 'en';
 const t = (k, ...a) => { const v = I18N[lang][k]; return typeof v === 'function' ? v(...a) : (v ?? k); };
 
 const AHA_NAMES = [
