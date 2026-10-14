@@ -7,6 +7,7 @@ import onnxruntime as ort
 from scipy.special import softmax
 
 from tigerhx import lib_tool
+from tigerhx.core.inference import segment
 nib.Nifti1Header.quaternion_threshold = -100
 
 
@@ -41,43 +42,5 @@ def post(mask):
 
 
 def run(model_ff, input_data, GPU, th=50):
-    xyzt_mode, _, _ = get_mode(model_ff)
-
-
-    data = input_data.copy()
-
-    data4d = (len(data.shape) == 4)
-
-    if data4d:
-        xx, yy, zz, tt = data.shape
-
-        data = np.reshape(data, [xx, yy, zz*tt])
-    else:
-        xx, yy, zz = data.shape
-
-    
-    mask_pred3d = data * 0
-    
-    for tti in range(data.shape[-1]):
-
-        image_raw = data[..., tti]
-        image = image_raw[None, ...][None, ...]
-        if np.max(image) == 0:
-            continue
-        image = image/np.max(image)
-
-        logits = lib_tool.predict(model_ff, image, GPU)
-   
-        mask_pred = post(np.argmax(logits[0, ...], axis=0), th=th)
-        mask_pred3d[..., tti] = mask_pred
-
-    if data4d:
-        mask_pred_final = np.reshape(mask_pred3d, [xx, yy, zz, tt])
-    else:
-        mask_pred_final = mask_pred3d
-
-
-    #mask_pred_final = post(mask_pred_final, th)
-
-    return mask_pred_final
-
+    """Segment a 3D or 4D cine image; th is the minimum component size."""
+    return segment(input_data, model_ff, gpu=GPU, min_size=th)
