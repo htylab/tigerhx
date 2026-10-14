@@ -6,21 +6,10 @@ name: Python compile
 on:
   push:
     branches: [ "main", "claude/gifted-fermat-i039r8" ]
-    tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
-  release:
-    types: [ published ]
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: 'After building, publish a GitHub release with this tag (e.g. v0.1.0); empty = build only'
-        required: false
-        default: ''
-      release_notes:
-        description: 'Release notes (Markdown)'
-        required: false
-        default: ''
+  workflow_call:  # used by release.yml
 
 permissions:
   contents: read
@@ -58,7 +47,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.9
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.9"
     - name: Install dependencies
@@ -84,42 +73,3 @@ jobs:
       with:
         name: ${{ matrix.py }}-${{ matrix.os }}
         path: dist/*
-
-  # Publishes both executables, zipped, for a version tag: push an annotated
-  # tag (its message becomes the release notes), publish a release on GitHub,
-  # or run this workflow manually with a tag. An existing release only gets
-  # the files.
-  release:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    concurrency:
-      group: release-${{ inputs.release_tag || github.ref_name }}
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-    - name: Publish the executables
-      env:
-        GH_TOKEN: ${{ github.token }}
-        TAG: ${{ inputs.release_tag || github.ref_name }}
-        NOTES: ${{ inputs.release_notes }}
-      run: |
-        cd artifacts
-        for d in */; do
-          name="${d%/}"; name="${name%-windows-latest}"
-          (cd "$d" && zip -9 -q "../${name}-${TAG}.zip" *.exe)
-        done
-        ls -l *.zip
-        if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-          gh release upload "$TAG" *.zip --repo "$GITHUB_REPOSITORY" --clobber
-        else
-          if [ -z "$NOTES" ]; then
-            obj=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq 'select(.object.type == "tag") | .object.sha' || true)
-            if [ -n "$obj" ]; then NOTES=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$obj" --jq .message); fi
-          fi
-          gh release create "$TAG" *.zip --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "$TAG" --notes "$NOTES"
-        fi
