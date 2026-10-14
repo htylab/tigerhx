@@ -43,7 +43,9 @@ Workflow:
 3. **Review** – the viewer (NiiVue) shows the image with the segmentation,
    its contours or the AHA 17-segment overlay, single slice or all slices,
    zoomed to the heart (the previous GUI's `_crop` views) or the full image,
-   with a frame slider and ED/ES jump.
+   with a frame slider and ED/ES jump. Overlays are drawn as smooth outlines
+   rather than voxel blocks; AHA segments are numbered and coloured by wall,
+   so a wall keeps its colour at every level.
    The first apical slice and the slice order (base→apex or apex→base) are
    suggested automatically; check them on the images and use
    *Use current slice as apex* or *Confirm suggestion*. The AHA labels are

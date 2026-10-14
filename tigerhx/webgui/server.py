@@ -203,8 +203,8 @@ class App:
                 del self._cache[key]
 
     def volume(self, cid, kind, crop=False):
-        """Display NIfTI bytes: the image, the labels ('seg'), the AHA map or
-        the label contours ('edge'); crop=True cuts them to the heart."""
+        """Display NIfTI bytes: the image, the labels ('seg') or the AHA map;
+        crop=True cuts them to the heart."""
         key = (cid, kind, crop)
         with self._cache_lock:
             if key in self._cache:
@@ -222,8 +222,6 @@ class App:
             data = np.asarray(nib.load(path).dataobj).astype(np.uint8)
             while data.ndim < 4:
                 data = data[..., None]
-            if kind == 'edge':
-                data = io.label_edges(data)
             zooms = case.zooms or [1, 1, 1]
         if crop and case.crop:
             x0, x1, y0, y1 = case.crop
@@ -325,7 +323,7 @@ def make_handler(app):
                     return self._json(app.state())
                 if len(parts) == 5 and parts[:2] == ['api', 'cases'] and parts[3] == 'volume':
                     kind = parts[4].split('.')[0]
-                    if kind not in ('image', 'seg', 'aha', 'edge') or parts[2] not in app.project.cases:
+                    if kind not in ('image', 'seg', 'aha') or parts[2] not in app.project.cases:
                         return self._json({'error': 'not found'}, 404)
                     crop = parse_qs(url.query).get('crop', ['0'])[0] == '1'
                     return self._send(200, app.volume(parts[2], kind, crop), 'application/octet-stream')

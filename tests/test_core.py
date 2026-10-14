@@ -231,7 +231,7 @@ def test_open_ring_check():
     assert not any(c['kind'] == 'open_ring' for c in tiny)
 
 
-def test_crop_box_and_label_edges():
+def test_crop_box():
     seg = phantom()
     x0, x1, y0, y1 = io.crop_box(seg, margin=3)
     xs, ys = np.nonzero(seg.any(axis=(2, 3)))
@@ -239,10 +239,3 @@ def test_crop_box_and_label_edges():
     assert io.crop_box(np.zeros((5, 7, 2, 1), np.uint8)) == [0, 5, 0, 7]
     assert io.crop_box(seg, margin=1000) == [0, seg.shape[0], 0, seg.shape[1]]
 
-    edges = io.label_edges(seg)
-    assert edges.dtype == np.uint8 and edges.shape == seg.shape
-    assert set(np.unique(edges)) == {0, 1, 2, 3}
-    assert ((edges == 0) | (edges == seg)).all()             # contours keep their label
-    inner = ndimage.binary_erosion(seg[..., 2, 0] == 1)
-    assert not edges[..., 2, 0][inner].any()                 # interior pixels are not contours
-    assert edges[..., 2, 0][(seg[..., 2, 0] == 1) & ~inner].all()

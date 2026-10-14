@@ -104,11 +104,9 @@ def test_full_flow(server, tmp_path):
 
     assert case['ed'] == 0 and case['es'] == 3 and case['checks'] == []
     x0, x1, y0, y1 = case['crop']
-    for kind in ('image', 'seg', 'edge', 'aha'):
+    for kind in ('image', 'seg', 'aha'):
         img = nib.Nifti1Image.from_bytes(call(f"/api/cases/{case['id']}/volume/{kind}.nii?crop=1"))
         assert img.shape == (x1 - x0, y1 - y0) + seg.shape[2:]
-    edge = nib.Nifti1Image.from_bytes(call(f"/api/cases/{case['id']}/volume/edge.nii"))
-    assert ((np.asarray(edge.dataobj) == 0) | (np.asarray(edge.dataobj) == seg)).all()
     for path, body in ((f"/api/cases/{case['id']}/phases", {'es': 2}), ('/api/export', {})):
         with pytest.raises(urllib.error.HTTPError) as e:
             call(path, body)

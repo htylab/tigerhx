@@ -86,20 +86,6 @@ def crop_box(seg, margin=10):
             max(0, int(ys[0]) - margin), min(seg.shape[1], int(ys[-1]) + 1 + margin)]
 
 
-def label_edges(labels):
-    """In-plane boundary pixels of every label, keeping the label value, for a
-    contour overlay (the original GUI's 'edge' view, coloured per label)."""
-    lab = np.asarray(labels)
-    edge = np.zeros(lab.shape, dtype=bool)
-    for axis in (0, 1):
-        diff = np.diff(lab, axis=axis) != 0
-        lo, hi = [slice(None)] * lab.ndim, [slice(None)] * lab.ndim
-        lo[axis], hi[axis] = slice(0, -1), slice(1, None)
-        edge[tuple(lo)] |= diff
-        edge[tuple(hi)] |= diff
-    return np.where(edge & (lab > 0), lab, 0).astype(np.uint8)
-
-
 def legacy_result(img, seg, apex_slice, base_first, model_name, voxel_size, ed=None, es=None):
     """The result dictionary written by the original GUI, field for field,
     plus 'AHA17'.  img and seg are 4D; voxel_size as header.get_zooms().

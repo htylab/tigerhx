@@ -27,7 +27,9 @@ const I18N = {
     queueLeft: n => `，佇列剩 ${n}`, idle: '待命', apexSaved: k => `Apex 設為 slice ${k}，AHA 已重算`,
     confirmRemove: n => `從清單移除 ${n} 個病例？（不會刪除檔案）`,
     notSegmented: '尚未分割。', error: '錯誤',
-    lblLV: 'LV 血池', lblMYO: '心肌', lblRV: 'RV 血池', basal: 'Basal', mid: 'Mid', apical: 'Apical', apex: 'Apex',
+    lblLV: 'LV 血池', lblMYO: '心肌', lblRV: 'RV 血池', lblEndo: 'LV 心內膜', lblEpi: 'LV 心外膜',
+    wall_anterior: '前壁', wall_anteroseptal: '前間隔', wall_inferoseptal: '下間隔', wall_inferior: '下壁',
+    wall_inferolateral: '下側壁', wall_anterolateral: '前側壁', wall_septal: '間隔', wall_lateral: '側壁', wall_apex: '心尖',
     modelMissing: '（首次使用時下載）',
     phases: (ed, es) => `ED frame ${ed} · ES frame ${es}（LV 血池最大 / 最小）`,
     checksTitle: '建議檢查', show: '查看', flagged: '有警示',
@@ -61,7 +63,9 @@ const I18N = {
     queueLeft: n => `, ${n} queued`, idle: 'Idle', apexSaved: k => `Apex set to slice ${k}; AHA updated`,
     confirmRemove: n => `Remove ${n} case(s) from the list? (files are kept)`,
     notSegmented: 'Not segmented yet.', error: 'Error',
-    lblLV: 'LV blood', lblMYO: 'Myocardium', lblRV: 'RV blood', basal: 'Basal', mid: 'Mid', apical: 'Apical', apex: 'Apex',
+    lblLV: 'LV blood', lblMYO: 'Myocardium', lblRV: 'RV blood', lblEndo: 'LV endocardium', lblEpi: 'LV epicardium',
+    wall_anterior: 'Anterior', wall_anteroseptal: 'Anteroseptal', wall_inferoseptal: 'Inferoseptal', wall_inferior: 'Inferior',
+    wall_inferolateral: 'Inferolateral', wall_anterolateral: 'Anterolateral', wall_septal: 'Septal', wall_lateral: 'Lateral', wall_apex: 'Apex',
     modelMissing: ' (downloaded on first use)',
     phases: (ed, es) => `ED frame ${ed} · ES frame ${es} (largest / smallest LV blood pool)`,
     checksTitle: 'Worth checking', show: 'Show', flagged: 'flagged',
@@ -83,32 +87,21 @@ const AHA_NAMES = [
   'apical anterior', 'apical septal', 'apical inferior', 'apical lateral', 'apex',
 ];
 
-// Overlay colours: drawn on the black viewer, so the dark-surface steps.
-const SEG_COLORS = [[0, 0, 0], [57, 135, 229], [217, 89, 38], [25, 158, 112]];
-// AHA: hue encodes the level, alternating lightness separates neighbouring sectors.
-const AHA_LEVEL = [
-  [[183, 211, 246], [28, 92, 171]],    // basal: blue
-  [[250, 196, 170], [184, 70, 25]],    // mid: orange
-  [[160, 230, 203], [16, 120, 84]],    // apical: aqua
-];
-const AHA_APEX = [144, 133, 233];      // 17: violet
-
-function lut(colors, names) {
-  const n = colors.length;
-  return {
-    R: colors.map(c => c[0]), G: colors.map(c => c[1]), B: colors.map(c => c[2]),
-    A: colors.map((_, i) => (i === 0 ? 0 : 255)), I: [...Array(n).keys()], labels: names,
-  };
-}
-function ahaColors() {
-  const out = [[0, 0, 0]];
-  for (let s = 1; s <= 16; s++) {
-    const level = s <= 6 ? 0 : s <= 12 ? 1 : 2;
-    out.push(AHA_LEVEL[level][s % 2]);
-  }
-  out.push(AHA_APEX);
-  return out;
-}
+// Overlay colours on the black viewer: fills use the dark-surface steps, lines
+// brighter versions of the same hues so a thin line stays visible.
+const SEG_FILL = { LV: [57, 135, 229], MYO: [217, 89, 38], RV: [25, 158, 112] };
+const SEG_LINE = { LV: [92, 166, 255], MYO: [255, 138, 76], RV: [52, 211, 153] };
+// AHA: the hue follows the wall, so a wall keeps its colour at every level and
+// neighbouring segments always differ; equal lightness keeps them balanced.
+const WALL_COLORS = {
+  anterior: [247, 133, 125], anteroseptal: [211, 163, 41], inferoseptal: [110, 194, 114],
+  inferior: [0, 195, 213], inferolateral: [127, 168, 255], anterolateral: [215, 138, 219],
+  septal: [168, 181, 64], lateral: [178, 152, 249], apex: [215, 215, 215],
+};
+const AHA_WALL = [null, 'anterior', 'anteroseptal', 'inferoseptal', 'inferior', 'inferolateral', 'anterolateral',
+  'anterior', 'anteroseptal', 'inferoseptal', 'inferior', 'inferolateral', 'anterolateral',
+  'anterior', 'septal', 'inferior', 'lateral', 'apex'];
+const rgb = (c, a = 1) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
 // ---------------------------------------------------------------- state
 const S = {
@@ -353,20 +346,18 @@ function showReadout(d) {
   el.classList.remove('hidden');
 }
 
-function renderLegend() {
+function renderLegend(items = []) {
   const el = $('legend');
-  if (!S.loadedKey || S.overlay === 'none' || !volIndex('seg.nii')) { el.classList.add('hidden'); return; }
-  const items = S.overlay === 'seg' || S.overlay === 'edge'
-    ? [[SEG_COLORS[1], t('lblLV')], [SEG_COLORS[2], t('lblMYO')], [SEG_COLORS[3], t('lblRV')]]
-    : [[AHA_LEVEL[0][1], `${t('basal')} 1–6`], [AHA_LEVEL[1][1], `${t('mid')} 7–12`],
-      [AHA_LEVEL[2][1], `${t('apical')} 13–16`], [AHA_APEX, `${t('apex')} 17`]];
+  const key = JSON.stringify(items);
+  if (el.dataset.key === key) return;
+  el.dataset.key = key;
+  el.classList.toggle('hidden', !items.length);
   el.replaceChildren(...items.map(([c, label]) => {
     const s = document.createElement('span');
-    const i = document.createElement('i'); i.style.background = `rgb(${c.join(',')})`;
+    const i = document.createElement('i'); i.style.background = rgb(c);
     s.append(i, document.createTextNode(label));
     return s;
   }));
-  el.classList.remove('hidden');
 }
 
 const zoomed = c => isSegmented(c) && !!c.crop && S.zoom === 'heart';
@@ -377,9 +368,7 @@ const volUrl = (c, kind, v = '') => {
   return `/api/cases/${c.id}/volume/${kind}.nii${q.toString() ? `?${q}` : ''}`;
 };
 const ahaVersion = c => `${c.apex_slice}-${c.base_first}-${c.model}`;
-const volIndex = name => { const i = nv.volumes.findIndex(v => v.name === name); return i < 0 ? 0 : i; };
-const segLut = () => lut(SEG_COLORS, ['', 'LV', 'MYO', 'RV']);
-const ahaLut = () => lut(ahaColors(), AHA_NAMES.map((n, i) => (i ? `${i}` : '')));
+const volIndex = name => nv.volumes.findIndex(v => v.name === name);
 
 async function maybeLoadCase(c) {
   const seg = isSegmented(c);
@@ -400,18 +389,15 @@ async function maybeLoadCase(c) {
     const vols = [{ url: volUrl(c, 'image'), name: 'image.nii' }];
     if (seg) {
       vols.push({ url: volUrl(c, 'seg', stamp), name: 'seg.nii' });
-      vols.push({ url: volUrl(c, 'edge', stamp), name: 'edge.nii' });
       vols.push({ url: volUrl(c, 'aha', ahaVersion(c)), name: 'aha.nii' });
     }
     await nv.loadVolumes(vols);
     if (seg) {
-      nv.volumes[volIndex('seg.nii')].setColormapLabel(segLut());
-      nv.volumes[volIndex('edge.nii')].setColormapLabel(segLut());
-      nv.volumes[volIndex('aha.nii')].setColormapLabel(ahaLut());
       S.ahaKey = ahaVersion(c);
     } else if (S.overlay !== 'none') {
       S.overlay = 'seg';
     }
+    shapeCache.clear();
     S.loadedKey = key;
     const nz = c.shape ? c.shape[2] : nv.volumes[0].hdr.dims[3];
     if (!samePlace) {
@@ -439,10 +425,10 @@ async function reloadAha(c) {
   S.loading = true;
   try {
     const vol = await niivue.NVImage.loadFromUrl({ url: volUrl(c, 'aha', ahaVersion(c)), name: 'aha.nii' });
-    vol.setColormapLabel(ahaLut());
     nv.removeVolume(old);
     nv.addVolume(vol);
     S.ahaKey = ahaVersion(c);
+    shapeCache.clear();
     applyOverlay();
     applyFrame();
   } finally {
@@ -451,10 +437,9 @@ async function reloadAha(c) {
 }
 
 function applyOverlay() {
-  [['seg.nii', 'seg', S.opacity], ['edge.nii', 'edge', 1], ['aha.nii', 'aha', S.opacity]].forEach(([name, mode, op]) => {
-    if (nv.volumes.some(v => v.name === name)) nv.setOpacity(volIndex(name), S.overlay === mode ? op : 0);
-  });
-  renderLegend();
+  // the label volumes only provide data (and the readout); drawOverlay draws them
+  ['seg.nii', 'aha.nii'].forEach(name => { if (volIndex(name) > 0) nv.setOpacity(volIndex(name), 0); });
+  drawOverlay();
 }
 function applyFrame() {
   nv.volumes.forEach(v => { if (v.nFrame4D > 1) nv.setFrame4D(v.id, S.frame); });
@@ -511,6 +496,246 @@ function togglePlay() {
   $('btnPlay').textContent = '❚❚';
   S.playing = setInterval(() => setFrame((S.frame + 1) % c.shape[3]), 90);
 }
+
+// ---------------------------------------------------------------- overlays
+// niivue draws the (interpolated) image; the segmentation, its contours and the
+// AHA segments are drawn here as smooth paths: marching squares on a lightly
+// blurred mask, then Taubin smoothing and corner cutting. Voxel overlays show the voxel staircase
+// once the view is zoomed in; these stay smooth at any size.
+const ovCanvas = $('ov');
+const ovCtx = ovCanvas.getContext('2d');
+const shapeCache = new Map();
+
+function labelSlice(name, k, t) {
+  const v = nv.volumes.find(x => x.name === name);
+  if (!v) return null;
+  const [, nx, ny, nz] = v.hdr.dims;
+  const nt = Math.max(1, v.nFrame4D || 1);
+  if (k < 0 || k >= nz) return null;
+  const n = nx * ny, off = (Math.min(t, nt - 1) * nz + k) * n;
+  return { data: v.img.subarray(off, off + n), nx, ny };
+}
+
+function blur121(f, w, h) {  // separable [1 2 1]/4, values outside are 0
+  const g = new Float32Array(f.length);
+  for (let b = 0; b < h; b++) {
+    for (let a = 0; a < w; a++) {
+      const i = a + b * w;
+      g[i] = (2 * f[i] + (a > 0 ? f[i - 1] : 0) + (a < w - 1 ? f[i + 1] : 0)) / 4;
+    }
+  }
+  for (let b = 0; b < h; b++) {
+    for (let a = 0; a < w; a++) {
+      const i = a + b * w;
+      f[i] = (2 * g[i] + (b > 0 ? g[i - w] : 0) + (b < h - 1 ? g[i + w] : 0)) / 4;
+    }
+  }
+}
+
+// Closed iso-lines of f (w x h, zero border) at level L, as [[a, b], ...].
+const MS_EDGES = [[], [[3, 0]], [[0, 1]], [[3, 1]], [[1, 2]], null, [[0, 2]], [[3, 2]],
+  [[2, 3]], [[0, 2]], null, [[1, 2]], [[3, 1]], [[0, 1]], [[3, 0]], []];
+function isoLines(f, w, h, L) {
+  const pts = new Map(), nb = new Map();
+  const edgeId = (a, b, e) => (e === 0 ? 2 * (a + b * w) : e === 1 ? 2 * (a + 1 + b * w) + 1
+    : e === 2 ? 2 * (a + (b + 1) * w) : 2 * (a + b * w) + 1);
+  const point = (a, b, e) => {
+    const [a0, b0, a1, b1] = e === 0 ? [a, b, a + 1, b] : e === 1 ? [a + 1, b, a + 1, b + 1]
+      : e === 2 ? [a, b + 1, a + 1, b + 1] : [a, b, a, b + 1];
+    const v0 = f[a0 + b0 * w], v1 = f[a1 + b1 * w];
+    const q = (L - v0) / (v1 - v0);
+    return [a0 + (a1 - a0) * q, b0 + (b1 - b0) * q];
+  };
+  const link = (x, y) => {
+    (nb.get(x) || nb.set(x, []).get(x)).push(y);
+    (nb.get(y) || nb.set(y, []).get(y)).push(x);
+  };
+  for (let b = 0; b < h - 1; b++) {
+    for (let a = 0; a < w - 1; a++) {
+      const v00 = f[a + b * w], v10 = f[a + 1 + b * w], v11 = f[a + 1 + (b + 1) * w], v01 = f[a + (b + 1) * w];
+      const idx = (v00 > L) | (v10 > L) << 1 | (v11 > L) << 2 | (v01 > L) << 3;
+      if (idx === 0 || idx === 15) continue;
+      let segs = MS_EDGES[idx];
+      if (!segs) {  // saddle: the centre decides which corners connect
+        const inside = (v00 + v10 + v11 + v01) / 4 > L;
+        segs = (idx === 5) === inside ? [[0, 1], [2, 3]] : [[3, 0], [1, 2]];
+      }
+      for (const [e0, e1] of segs) {
+        const x = edgeId(a, b, e0), y = edgeId(a, b, e1);
+        if (!pts.has(x)) pts.set(x, point(a, b, e0));
+        if (!pts.has(y)) pts.set(y, point(a, b, e1));
+        link(x, y);
+      }
+    }
+  }
+  const lines = [], used = new Set();
+  for (const start of nb.keys()) {
+    if (used.has(start)) continue;
+    const line = [];
+    let prev = null, cur = start;
+    while (cur !== undefined && !used.has(cur)) {
+      used.add(cur);
+      line.push(pts.get(cur));
+      const next = nb.get(cur).find(x => x !== prev && !used.has(x));
+      prev = cur; cur = next;
+    }
+    if (line.length > 2) lines.push(line);
+  }
+  return lines;
+}
+
+function taubin(line, n = 12) {  // removes the voxel ripple without shrinking (closed polyline)
+  let p = line;
+  for (let it = 0; it < 2 * n; it++) {
+    const k = it % 2 ? -0.63 : 0.6;
+    p = p.map(([a, b], i) => {
+      const [a0, b0] = p[(i + p.length - 1) % p.length], [a1, b1] = p[(i + 1) % p.length];
+      return [a + k * ((a0 + a1) / 2 - a), b + k * ((b0 + b1) / 2 - b)];
+    });
+  }
+  return p;
+}
+
+function chaikin(line) {  // corner cutting on a closed polyline
+  const out = [];
+  for (let i = 0; i < line.length; i++) {
+    const [a0, b0] = line[i], [a1, b1] = line[(i + 1) % line.length];
+    out.push([0.75 * a0 + 0.25 * a1, 0.75 * b0 + 0.25 * b1], [0.25 * a0 + 0.75 * a1, 0.25 * b0 + 0.75 * b1]);
+  }
+  return out;
+}
+
+// Smooth outlines of the voxels passing test, in voxel coordinates (i, j).
+function outlines(sl, test) {
+  const { data, nx, ny } = sl;
+  let i0 = nx, i1 = -1, j0 = ny, j1 = -1;
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      if (!test(data[i + j * nx])) continue;
+      if (i < i0) i0 = i; if (i > i1) i1 = i;
+      if (j < j0) j0 = j; if (j > j1) j1 = j;
+    }
+  }
+  if (i1 < 0) return { lines: [], centre: null };
+  const m = 2, w = i1 - i0 + 1 + 2 * m, h = j1 - j0 + 1 + 2 * m;
+  const f = new Float32Array(w * h);
+  let si = 0, sj = 0, n = 0;
+  for (let j = j0; j <= j1; j++) {
+    for (let i = i0; i <= i1; i++) {
+      if (!test(data[i + j * nx])) continue;
+      f[i - i0 + m + (j - j0 + m) * w] = 1;
+      si += i; sj += j; n++;
+    }
+  }
+  blur121(f, w, h);
+  const lines = isoLines(f, w, h, 0.5).map(l => chaikin(chaikin(taubin(l))).map(([a, b]) => [a + i0 - m, b + j0 - m]));
+  return { lines, centre: [si / n, sj / n] };
+}
+
+function shapesAt(mode, k, t) {
+  const key = `${mode}|${k}|${t}`;
+  if (shapeCache.has(key)) return shapeCache.get(key);
+  let out = null;
+  if (mode === 'aha') {
+    const sl = labelSlice('aha.nii', k, t);
+    if (sl) {
+      const present = [...new Set(sl.data)].filter(v => v >= 1 && v <= 17).sort((x, y) => x - y);
+      out = { segments: present.map(sgm => ({ sgm, ...outlines(sl, v => v === sgm) })) };
+    }
+  } else {
+    const sl = labelSlice('seg.nii', k, t);
+    if (sl) {
+      out = {
+        endo: outlines(sl, v => v === 1).lines,
+        epi: outlines(sl, v => v === 1 || v === 2).lines,
+        rv: outlines(sl, v => v === 3).lines,
+      };
+    }
+  }
+  if (shapeCache.size > 3000) shapeCache.clear();
+  shapeCache.set(key, out);
+  return out;
+}
+
+function drawOverlay() {
+  const gl = $('gl');
+  if (ovCanvas.width !== gl.width || ovCanvas.height !== gl.height) {
+    ovCanvas.width = gl.width; ovCanvas.height = gl.height;
+  }
+  const ctx = ovCtx;
+  ctx.clearRect(0, 0, ovCanvas.width, ovCanvas.height);
+  const c = selectedCase();
+  const mode = S.overlay;
+  if (!S.loadedKey || mode === 'none' || !isSegmented(c) || volIndex('seg.nii') < 0) return renderLegend();
+  const [dx, dy] = c.zooms || [1, 1];
+  const nz = nv.volumes[0].hdr.dims[3];
+  const dpr = nv.uiData.dpr || 1;
+  const walls = new Set();
+  for (const tile of nv.screenSlices) {
+    if (tile.axCorSag !== 0 || !tile.fovMM || tile.fovMM.length < 2) continue;
+    const k = Math.round(tile.sliceFrac * nz - 0.5);
+    const g = shapesAt(mode === 'aha' ? 'aha' : 'seg', k, S.frame);
+    if (!g) continue;
+    const [L, T, W, H] = tile.leftTopWidthHeight;
+    const [mx, my] = tile.leftTopMM, [fx, fy] = tile.fovMM;
+    // voxel (i, j) -> mm (dy * j, -dx * i), the display affine -> canvas pixels
+    const X = j => L + (dy * j - mx) / fx * W, Y = i => T + (1 - (-dx * i - my) / fy) * H;
+    const path = (lines, p = new Path2D()) => {
+      for (const l of lines) {
+        l.forEach(([i, j], n) => (n ? p.lineTo(X(j), Y(i)) : p.moveTo(X(j), Y(i))));
+        p.closePath();
+      }
+      return p;
+    };
+    const big = W > 360 * dpr;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(L, T, W, H); ctx.clip();
+    ctx.lineJoin = 'round';
+    if (mode === 'edge') {
+      ctx.lineWidth = (big ? 1.6 : 1.2) * dpr;
+      [['epi', SEG_LINE.MYO], ['endo', SEG_LINE.LV], ['rv', SEG_LINE.RV]].forEach(([name, col]) => {
+        ctx.strokeStyle = rgb(col); ctx.stroke(path(g[name]));
+      });
+    } else if (mode === 'seg') {
+      const myo = path(g.endo, path(g.epi)), lv = path(g.endo), rv = path(g.rv);
+      ctx.fillStyle = rgb(SEG_FILL.MYO, S.opacity); ctx.fill(myo, 'evenodd');
+      ctx.fillStyle = rgb(SEG_FILL.LV, S.opacity); ctx.fill(lv);
+      ctx.fillStyle = rgb(SEG_FILL.RV, S.opacity); ctx.fill(rv);
+      ctx.lineWidth = 1 * dpr;
+      [[path(g.epi), SEG_LINE.MYO], [lv, SEG_LINE.LV], [rv, SEG_LINE.RV]].forEach(([p, col]) => {
+        ctx.strokeStyle = rgb(col, 0.85); ctx.stroke(p);
+      });
+    } else {
+      for (const sg of g.segments) {
+        const col = WALL_COLORS[AHA_WALL[sg.sgm]];
+        walls.add(AHA_WALL[sg.sgm]);
+        ctx.fillStyle = rgb(col, Math.min(1, S.opacity + 0.2)); ctx.fill(path(sg.lines));
+      }
+      ctx.lineWidth = 1 * dpr;
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      for (const sg of g.segments) ctx.stroke(path(sg.lines));
+      if (big) {
+        ctx.font = `600 ${12 * dpr}px system-ui, sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineWidth = 3 * dpr; ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.fillStyle = '#fff';
+        for (const sg of g.segments) {
+          const [i, j] = sg.centre;
+          ctx.strokeText(sg.sgm, X(j), Y(i)); ctx.fillText(sg.sgm, X(j), Y(i));
+        }
+      }
+    }
+    ctx.restore();
+  }
+  if (mode === 'aha') {
+    renderLegend(Object.keys(WALL_COLORS).filter(w => walls.has(w)).map(w => [WALL_COLORS[w], t('wall_' + w)]));
+  } else if (mode === 'edge') {
+    renderLegend([[SEG_LINE.LV, t('lblEndo')], [SEG_LINE.MYO, t('lblEpi')], [SEG_LINE.RV, t('lblRV')]]);
+  } else {
+    renderLegend([[SEG_FILL.LV, t('lblLV')], [SEG_FILL.MYO, t('lblMYO')], [SEG_FILL.RV, t('lblRV')]]);
+  }
+}
+const drawScene = nv.drawScene.bind(nv);
+nv.drawScene = (...args) => { const r = drawScene(...args); drawOverlay(); return r; };
 
 // ---------------------------------------------------------------- actions
 async function addPaths(paths, include = '', exclude = '') {
@@ -573,7 +798,7 @@ function bind() {
     applyI18n();
     $('caseBody').dataset.html = '';
     render();
-    renderLegend();
+    drawOverlay();
   };
 
   $('caseBody').addEventListener('click', ev => {

@@ -68,7 +68,7 @@ def main(exe):
                 break
             time.sleep(0.5)
         assert case['status'] == 'review', case
-        for kind in ('image', 'seg', 'edge', 'aha'):
+        for kind in ('image', 'seg', 'aha'):
             assert len(call(f"/api/cases/{case['id']}/volume/{kind}.nii?crop=1")) > 352
         mat = loadmat(case['outputs']['mat'])
         assert all(k in mat for k in ('Seg', 'SegAHA', 'AHA17', 'ED_frame_0base'))

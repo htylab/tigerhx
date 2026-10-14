@@ -177,6 +177,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
 .seg-buttons button.on { background: var(--accent); color: var(--accent-ink); }
 .canvas-wrap { position: relative; flex: 1; min-height: 200px; background: #000; }
 .canvas-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#ov { pointer-events: none; }
 .canvas-hint {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   color: #898781; text-align: center; padding: 24px; pointer-events: none; line-height: 1.6;
