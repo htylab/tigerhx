@@ -203,8 +203,7 @@ def test_ed_rules_and_basal_exclusion():
 
 def test_slice_checks():
     seg = phantom()
-    kinds = {(c['kind'], c['chamber'], c['slice']) for c in metrics.slice_checks(seg, 0, 3)}
-    assert kinds == {('basal', 'LV', 0), ('basal', 'RV', 0)}     # clean phantom: reminders only
+    assert metrics.slice_checks(seg, 0, 3) == []                  # clean phantom
     bad = seg.copy()
     bad[30:60, 30:60, 7, 3] = 1          # big 'LV' below the apex at ES only
     bad[..., 3, 0][bad[..., 3, 0] == 1] = 0  # LV missing at ED on a middle slice
@@ -225,8 +224,25 @@ def test_open_ring_check():
     sl[(sl == 2) & (np.mgrid[:96, :96][0] < 48)] = 0     # remove half of the basal ring at ES
     assert aha.LV and metrics.lv_ring_coverage(sl) < 0.75
     kinds = {(c['kind'], c['chamber'], c['slice']) for c in metrics.slice_checks(open_base, 0, 3)}
-    assert ('open_ring', 'LV', 0) in kinds and ('basal', 'LV', 0) not in kinds
+    assert kinds == {('open_ring', 'LV', 0)}
     assert metrics.lv_ring_coverage(seg[:, :, 2, 0]) == 1.0
     # thresholds are areas in mm^2: tiny voxels make the same structure 'small'
     tiny = metrics.slice_checks(open_base, 0, 3, zooms=[0.01, 0.01, 8])
     assert not any(c['kind'] == 'open_ring' for c in tiny)
+
+
+def test_crop_box_and_label_edges():
+    seg = phantom()
+    x0, x1, y0, y1 = io.crop_box(seg, margin=3)
+    xs, ys = np.nonzero(seg.any(axis=(2, 3)))
+    assert (x0, x1, y0, y1) == (xs.min() - 3, xs.max() + 4, ys.min() - 3, ys.max() + 4)
+    assert io.crop_box(np.zeros((5, 7, 2, 1), np.uint8)) == [0, 5, 0, 7]
+    assert io.crop_box(seg, margin=1000) == [0, seg.shape[0], 0, seg.shape[1]]
+
+    edges = io.label_edges(seg)
+    assert edges.dtype == np.uint8 and edges.shape == seg.shape
+    assert set(np.unique(edges)) == {0, 1, 2, 3}
+    assert ((edges == 0) | (edges == seg)).all()             # contours keep their label
+    inner = ndimage.binary_erosion(seg[..., 2, 0] == 1)
+    assert not edges[..., 2, 0][inner].any()                 # interior pixels are not contours
+    assert edges[..., 2, 0][(seg[..., 2, 0] == 1) & ~inner].all()

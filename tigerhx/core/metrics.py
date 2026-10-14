@@ -118,17 +118,15 @@ def auto_exclusions(seg, ed, es, zooms=None, factor=2.0, margin_mm2=200.0):
 
 
 def slice_checks(seg, ed, es, base_first=True, excluded=None, zooms=None):
-    """Slices worth a look before trusting ED/ES volumes.
+    """Slices whose segmentation is worth a look.
 
     'es_gt_ed':  a cavity is clearly larger at ES than at ED on that slice
                  (often a structure outside the ventricle near the apex).
     'gap':       a cavity is (almost) missing on a slice although both
                  neighbours have it.
     'open_ring': the basal-most LV slice at ES is poorly enclosed by
-                 myocardium, so it is probably atrium.
-    'basal':     reminder to check that the basal-most slice with a cavity at
-                 ES is still ventricle (the commonest source of ESV error).
-    Neighbours that are excluded do not count as evidence of a gap.
+                 myocardium, so the LV label probably covers atrium.
+    Neighbours listed in excluded do not count as evidence of a gap.
     """
     excluded = excluded or {}
     checks = []
@@ -152,17 +150,14 @@ def slice_checks(seg, ed, es, base_first=True, excluded=None, zooms=None):
                 if lo > min_area and a[ph][z] < 0.2 * lo:
                     checks.append({'kind': 'gap', 'phase': ph, 'chamber': chamber, 'slice': z,
                                    'area': int(round(a[ph][z])), 'neighbours': int(round(lo))})
+        if chamber != 'LV':
+            continue
         order = range(nz) if base_first else range(nz - 1, -1, -1)
         basal = next((z for z in order if a['ES'][z] > min_area), None)
-        if basal is None:
-            continue
-        cov = lv_ring_coverage(seg[:, :, basal, es]) if chamber == 'LV' else None
+        cov = None if basal is None else lv_ring_coverage(seg[:, :, basal, es])
         if cov is not None and cov < 0.75:
             checks.append({'kind': 'open_ring', 'phase': 'ES', 'chamber': chamber, 'slice': basal,
                            'coverage': round(cov, 2)})
-        else:
-            checks.append({'kind': 'basal', 'phase': 'ES', 'chamber': chamber, 'slice': basal,
-                           'es': int(round(a['ES'][basal]))})
     return checks
 
 

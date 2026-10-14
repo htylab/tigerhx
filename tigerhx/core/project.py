@@ -9,8 +9,7 @@ from collections import OrderedDict
 from dataclasses import asdict, dataclass, field, fields
 from os.path import abspath, isdir, isfile, join, relpath
 
-from tigerhx.core.io import safe_name, strip_nii_ext, write_csv
-from tigerhx.core.metrics import METRIC_KEYS
+from tigerhx.core.io import safe_name, strip_nii_ext
 
 NII_EXT = ('.nii', '.nii.gz')
 
@@ -22,32 +21,7 @@ DEFAULT_SETTINGS = {
     'save_mat': True,          # legacy .mat in the workspace
     'mat_in_inputdir': False,  # legacy .mat next to the input file
     'nii_in_inputdir': False,  # label NIfTI next to the input file
-    'ed_rule': 'max_volume',   # automatic ED: largest LV volume or first frame
 }
-
-PHASES, CHAMBERS = ('ED', 'ES'), ('LV', 'RV')
-
-
-def empty_excluded():
-    return {ph: {ch: [] for ch in CHAMBERS} for ph in PHASES}
-
-
-def normalize_slices(d):
-    out = empty_excluded()
-    for ph in PHASES:
-        for ch in CHAMBERS:
-            out[ph][ch] = sorted(set(((d or {}).get(ph) or {}).get(ch) or []))
-    return out
-
-
-def effective_excluded(case):
-    """(user exclusions + automatic ones) minus slices the user kept."""
-    out = empty_excluded()
-    for ph in PHASES:
-        for ch in CHAMBERS:
-            out[ph][ch] = sorted((set(case.excluded[ph][ch]) | set(case.auto_excluded[ph][ch]))
-                                 - set(case.kept[ph][ch]))
-    return out
 
 
 @dataclass
@@ -66,25 +40,15 @@ class Case:
     base_first: bool = None
     apex_slice: int = None
     apex_confirmed: bool = False
-    ed_manual: int = None      # user-set ED/ES frames override the automatic ones
-    es_manual: int = None
-    excluded: dict = field(default_factory=empty_excluded)       # user: not counted
-    auto_excluded: dict = field(default_factory=empty_excluded)  # automatic (metrics.auto_exclusions)
-    kept: dict = field(default_factory=empty_excluded)           # user: count despite auto
-    excluded_effective: dict = field(default_factory=empty_excluded)
-    checks: list = None        # slices flagged for review (metrics.slice_checks)
+    checks: list = None        # slices whose segmentation is worth a look (metrics.slice_checks)
     levels: list = None
-    metrics: dict = None
-    curves: dict = None
+    crop: list = None          # [x0, x1, y0, y1] around the heart, for the zoomed view
     outputs: dict = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, d):
         names = {f.name for f in fields(cls)}
-        c = cls(**{k: v for k, v in d.items() if k in names})
-        for name in ('excluded', 'auto_excluded', 'kept', 'excluded_effective'):
-            setattr(c, name, normalize_slices(getattr(c, name)))
-        return c
+        return cls(**{k: v for k, v in d.items() if k in names})
 
     @property
     def folder(self):
@@ -133,7 +97,8 @@ class Project:
             return
         with open(self.file, encoding='utf-8') as f:
             d = json.load(f)
-        self.settings.update(d.get('settings', {}))
+        self.settings.update({k: v for k, v in d.get('settings', {}).items()
+                              if k in DEFAULT_SETTINGS})
         for cd in d.get('cases', []):
             c = Case.from_dict(cd)
             if c.status in ('queued', 'running'):  # interrupted by a restart
@@ -182,30 +147,3 @@ class Project:
                 if c is not None and c.status not in ('queued', 'running'):
                     del self.cases[i]
             self.save()
-
-    def export_metrics(self, path=None):
-        """Write one row per segmented case to a CSV; returns its path."""
-        path = path or join(self.workspace, 'tigerhx_metrics.csv')
-        header = ['Case', 'Filename', 'Status', 'Model', 'ED_frame_0base', 'ED_source',
-                  'ES_frame_0base', 'ES_source', 'Apex_slice_0base', 'Apex_confirmed',
-                  'Slice_order'] + [f'Excluded_{ph}_{ch}' for ph in PHASES for ch in CHAMBERS] \
-            + ['Auto_excluded'] + METRIC_KEYS
-        rows = []
-        with self.lock:
-            rule = self.settings.get('ed_rule', 'max_volume')
-            for c in self.cases.values():
-                if not c.metrics:
-                    continue
-                order = '' if c.base_first is None else ('base->apex' if c.base_first else 'apex->base')
-                eff = effective_excluded(c)
-                excluded = [' '.join(map(str, eff[ph][ch])) for ph in PHASES for ch in CHAMBERS]
-                auto = '; '.join(f'{ph} {ch} {z}' for ph in PHASES for ch in CHAMBERS
-                                 for z in c.auto_excluded[ph][ch] if z in eff[ph][ch])
-                rows.append([c.name, c.path, c.status, c.model,
-                             c.ed, 'manual' if c.ed_manual is not None else rule,
-                             c.es, 'manual' if c.es_manual is not None else 'min_volume',
-                             c.apex_slice, int(bool(c.apex_confirmed)), order]
-                            + excluded + [auto]
-                            + ['' if c.metrics.get(k) is None else c.metrics[k] for k in METRIC_KEYS])
-        write_csv(path, header, rows)
-        return path

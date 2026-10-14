@@ -14,9 +14,8 @@ import numpy as np
 
 from tigerhx.core import aha, metrics
 from tigerhx.core.inference import model_version, segment
-from tigerhx.core.io import (legacy_result, load_nifti, save_labels, save_mat,
+from tigerhx.core.io import (crop_box, legacy_result, load_nifti, save_labels, save_mat,
                              strip_nii_ext)
-from tigerhx.core.project import effective_excluded, normalize_slices
 
 
 def _seg_path(project, case):
@@ -52,21 +51,14 @@ def segment_case(project, case, model_path, gpu=False, progress=None, cancel=Non
 
 
 def analyze_case(project, case, seg=None):
-    """ED/ES, slice order, apex suggestion (unless already set), AHA17 map and
-    metrics.  Fast enough to rerun whenever the user changes a choice."""
+    """ED/ES frames, slice order, apex suggestion (unless already set), the
+    AHA17 map and the segmentation checks.  Fast enough to rerun whenever the
+    user changes the apex."""
     if seg is None:
         seg = load_seg(project, case)
-    nt = seg.shape[3]
-    ed, es = metrics.find_ed_es(seg, project.settings.get('ed_rule', 'max_volume'))
+    ed, es = metrics.find_ed_es(seg)
     with project.lock:
-        if case.ed_manual is not None and 0 <= case.ed_manual < nt:
-            ed = case.ed_manual
-        if case.es_manual is not None and 0 <= case.es_manual < nt:
-            es = case.es_manual
-        base_first = case.base_first
-        apex = case.apex_slice
-        user_excluded = normalize_slices(case.excluded)
-        kept = normalize_slices(case.kept)
+        base_first, apex = case.base_first, case.apex_slice
     if base_first is None:
         base_first = aha.detect_base_first(seg, ed)
     if apex is None:
@@ -75,20 +67,14 @@ def analyze_case(project, case, seg=None):
     src = nib.load(case.path)
     save_labels(a17 if len(src.shape) == 4 else a17[..., 0], src.affine, src.header,
                 join(project.case_dir(case), 'aha17.nii.gz'))
-    zooms = case.zooms or [1.0, 1.0, 1.0]
+    levels = aha.slice_levels(seg, ed, apex, base_first)
+    checks = metrics.slice_checks(seg, ed, es, base_first, zooms=case.zooms)
     with project.lock:
         case.ed, case.es = ed, es
         case.base_first, case.apex_slice = base_first, apex
-        levels = aha.slice_levels(seg, ed, apex, base_first)
         case.levels = [levels[z] for z in range(seg.shape[2])]
-        case.auto_excluded = metrics.auto_exclusions(seg, ed, es, zooms)
-        case.excluded, case.kept = user_excluded, kept
-        excluded = effective_excluded(case)
-        case.excluded_effective = excluded
-        case.metrics = metrics.compute_metrics(seg, zooms, ed, es, excluded)
-        case.checks = metrics.slice_checks(seg, ed, es, base_first, excluded, zooms)
-        case.curves = {k: [round(v, 2) for v in vals]
-                       for k, vals in metrics.volume_curves(seg, zooms).items()}
+        case.checks = checks
+        case.crop = crop_box(seg)
     return a17
 
 
@@ -100,46 +86,6 @@ def set_apex(project, case, apex_slice, base_first=None):
             case.base_first = bool(base_first)
         case.apex_confirmed = True
         case.status = 'done'
-    analyze_case(project, case)
-
-
-def set_phases(project, case, ed=None, es=None, reset=False):
-    """User-chosen ED and/or ES frame (reset=True returns to automatic)."""
-    nt = case.shape[3] if case.shape else 1
-    for value in (ed, es):
-        if value is not None and not 0 <= int(value) < nt:
-            raise ValueError(f'frame must be within 0..{nt - 1}')
-    with project.lock:
-        if reset:
-            case.ed_manual = case.es_manual = None
-        if ed is not None:
-            case.ed_manual = int(ed)
-        if es is not None:
-            case.es_manual = int(es)
-    analyze_case(project, case)
-
-
-def set_excluded(project, case, phase, chamber, slice_index, exclude=True):
-    """Leave one slice out of (or back into) the volume of one chamber
-    (LV/RV) at one phase (ED/ES), e.g. a basal slice that is atrium at ES."""
-    if phase not in case.excluded or chamber not in case.excluded[phase]:
-        raise ValueError('phase must be ED or ES and chamber LV or RV')
-    nz = case.shape[2] if case.shape else 0
-    if not 0 <= int(slice_index) < nz:
-        raise ValueError(f'slice must be within 0..{nz - 1}')
-    z = int(slice_index)
-    with project.lock:
-        user, kept = set(case.excluded[phase][chamber]), set(case.kept[phase][chamber])
-        auto = z in case.auto_excluded[phase][chamber]
-        if exclude:
-            kept.discard(z)
-            if not auto:
-                user.add(z)
-        else:
-            user.discard(z)
-            if auto:
-                kept.add(z)
-        case.excluded[phase][chamber], case.kept[phase][chamber] = sorted(user), sorted(kept)
     analyze_case(project, case)
 
 

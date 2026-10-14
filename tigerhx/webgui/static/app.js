@@ -5,94 +5,76 @@ const I18N = {
   zh: {
     addFiles: '＋ 檔案', addFolder: '＋ 資料夾', model: '模型', stop: '■ 停止',
     runAll: n => `▶ 分割待處理 (${n})`, runChecked: n => `▶ 分割已選 (${n})`,
-    export: '匯出指標 CSV', settings: '設定', pathsLabel: '檔案或資料夾路徑（每行一個）',
+    settings: '設定', pathsLabel: '檔案或資料夾路徑（每行一個）',
     include: '包含關鍵字（逗號分隔，空白=全部）', exclude: '排除關鍵字', add: '加入', cancel: '取消',
     saveMat: '在工作資料夾輸出 .mat（舊版格式）', matInput: '.mat 也存到原始資料夾',
     niiInput: '分割 .nii.gz 存到原始資料夾', workspace: '工作資料夾', openFolder: '開啟資料夾',
-    cases: '病例', colName: '名稱', colStatus: '狀態', colApex: 'Apex',
+    cases: '病例', colName: '名稱', colStatus: '狀態', colApex: 'Apex', colChecks: '檢查',
     emptyCases: '按「＋ 檔案」或「＋ 資料夾」加入 cine NIfTI。\n不需要先準備 CSV，也不用先填 Apex：分割完成後再看著影像確認。',
     remove: '移除選取', openCaseFolder: '開啟病例資料夾',
-    viewSingle: '單張', viewMosaic: '全部 slice', ovSeg: '分割', ovAha: 'AHA 17', ovNone: '無疊圖',
+    viewSingle: '單張', viewMosaic: '全部 slice', zoomHeart: '放大心臟', zoomFull: '整張影像',
+    ovSeg: '分割', ovEdge: '輪廓', ovAha: 'AHA 17', ovNone: '無疊圖',
     opacity: '透明度', hintSelect: '從左側選一個病例', frame: 'Frame', slice: 'Slice',
     apexStart: 'Apical 起始 slice', setApex: '把目前 slice 設為 Apex', confirmApex: '確認建議值',
     sliceOrder: 'Slice 順序', baseFirst: 'base → apex', apexFirst: 'apex → base',
-    results: '結果', noResults: '分割完成後會顯示容積與 EF。',
+    results: '分割檢查', noResults: '分割完成後會在這裡列出需要看一下的 slice。',
     st_pending: '待處理', st_queued: '排隊中', st_running: '分割中', st_review: '待確認 Apex',
     st_done: '完成', st_error: '錯誤',
     suggested: '自動建議', confirmed: '已確認',
     lv_basal: 'basal', lv_mid: 'mid', lv_apical: 'apical', lv_apex: 'apex cap',
-    added: n => `加入 ${n} 個病例`, queued: n => `${n} 個病例排入佇列`, exported: p => `已匯出：${p}`,
+    added: n => `加入 ${n} 個病例`, queued: n => `${n} 個病例排入佇列`,
     downloading: (m, p) => `下載模型 ${m} … ${p}`, runningCase: (n, p) => `分割中：${n} ${p}`,
     queueLeft: n => `，佇列剩 ${n}`, idle: '待命', apexSaved: k => `Apex 設為 slice ${k}，AHA 已重算`,
     confirmRemove: n => `從清單移除 ${n} 個病例？（不會刪除檔案）`,
-    lvEf: 'LV EF', rvEf: 'RV EF', volCurve: '容積–時間曲線 (mL)', table: '數值表',
-    edv: 'EDV', esv: 'ESV', sv: 'SV', mass: '心肌質量', edFrame: 'ED frame', esFrame: 'ES frame',
-    singleFrame: '單一時相：無 EF。', notSegmented: '尚未分割。', error: '錯誤',
+    notSegmented: '尚未分割。', error: '錯誤',
     lblLV: 'LV 血池', lblMYO: '心肌', lblRV: 'RV 血池', basal: 'Basal', mid: 'Mid', apical: 'Apical', apex: 'Apex',
     modelMissing: '（首次使用時下載）',
-    calib: 'ED / ES 與 slice 校正', auto: '自動', manual: '手動', resetPhases: '恢復自動 ED/ES',
-    useFrame: f => `用目前 frame（${f}）`, setSlice: k => `設為目前 slice（${k}）`, clear: '清除', all: '全部',
-    setTo: v => `設為 ${v}`,
-    exclTitle: '不計入容積的 slice', checksTitle: '建議檢查',
-    dontCount: ch => `此 slice 不計入 ${ch}`, countAgain: ch => `恢復計入 ${ch}`,
-    atSlice: (ph, f, k) => `目前 ${ph}（frame ${f}）· slice ${k}`,
-    goPhase: '切到 ED 或 ES 才能排除 slice：', show: '查看',
-    chkBigger: (z, ch, es, ed) => `slice ${z}：ES 的 ${ch} 比 ED 大（${es} vs ${ed} voxels），可能標到心室外的結構`,
-    chkGap: (z, ph, ch, a, n) => `slice ${z}：${ph} 的 ${ch} 疑似漏標（${a} voxels，鄰近 ${n}）`,
-    chkBasal: (z, ch) => `確認 ES 最基底的 ${ch}（slice ${z}）是否已進入心房；是的話不計入`,
-    chkRing: (z, p) => `slice ${z}：ES 最基底的 LV 只有 ${p}% 被心肌包住，可能已是心房；建議不計入`,
-    autoTag: '自動',
-    autoNote: '標「自動」的 slice 是 ES 時心室腔比 ED 大很多（多半是心尖下方的結構），已自動不計入；按 × 可恢復。',
-    edRule: 'ED 自動判定', edRuleMax: '最大 LV 容積', edRuleFirst: '第一個 frame（R 波觸發）',
-    rule_max_volume: '最大容積', rule_first_frame: '第一個 frame', rule_min: '最小容積',
-    excluded: (ph, ch) => `${ph} 不計入 ${ch}`, curveNote: '曲線包含所有 slice，未套用排除設定。',
-    now: (f, k) => `目前：frame ${f} · slice ${k}`,
+    phases: (ed, es) => `ED frame ${ed} · ES frame ${es}（LV 血池最大 / 最小）`,
+    checksTitle: '建議檢查', show: '查看', flagged: '有警示',
+    checksNone: '自動檢查沒有發現問題。仍建議切到「輪廓」逐張看一下。',
+    checksNote: '自動檢查只抓得到明顯的錯誤：ES 比 ED 大、漏標的 slice、基底 LV 沒被心肌包住。',
+    singleFrame: '單一時相：需要 cine 才能做 ED/ES 的比對檢查。',
+    chkBigger: (z, ch, es, ed) => `slice ${z}：ES 的 ${ch} 比 ED 大（${es} vs ${ed} mm²），可能標到心室外的結構`,
+    chkGap: (z, ph, ch, a, n) => `slice ${z}：${ph} 的 ${ch} 疑似漏標（${a} mm²，鄰近 slice ${n} mm²）`,
+    chkRing: (z, p) => `slice ${z}：ES 最基底的 LV 只有 ${p}% 被心肌包住，LV 標記可能已進入心房`,
+    outputs: '輸出檔案',
   },
   en: {
     addFiles: '＋ Files', addFolder: '＋ Folder', model: 'Model', stop: '■ Stop',
     runAll: n => `▶ Segment pending (${n})`, runChecked: n => `▶ Segment checked (${n})`,
-    export: 'Export metrics CSV', settings: 'Settings', pathsLabel: 'File or folder paths (one per line)',
+    settings: 'Settings', pathsLabel: 'File or folder paths (one per line)',
     include: 'Include keywords (comma separated, empty = all)', exclude: 'Exclude keywords', add: 'Add', cancel: 'Cancel',
     saveMat: 'Write legacy .mat to the workspace', matInput: 'Also write .mat next to the input',
     niiInput: 'Write segmentation .nii.gz next to the input', workspace: 'Workspace', openFolder: 'Open folder',
-    cases: 'Cases', colName: 'Name', colStatus: 'Status', colApex: 'Apex',
+    cases: 'Cases', colName: 'Name', colStatus: 'Status', colApex: 'Apex', colChecks: 'QC',
     emptyCases: 'Use “＋ Files” or “＋ Folder” to add cine NIfTI images.\nNo CSV and no apex needed up front: confirm the apex on the images after segmentation.',
     remove: 'Remove checked', openCaseFolder: 'Open case folder',
-    viewSingle: 'Single', viewMosaic: 'All slices', ovSeg: 'Segmentation', ovAha: 'AHA 17', ovNone: 'No overlay',
+    viewSingle: 'Single', viewMosaic: 'All slices', zoomHeart: 'Zoom to heart', zoomFull: 'Full image',
+    ovSeg: 'Segmentation', ovEdge: 'Contours', ovAha: 'AHA 17', ovNone: 'No overlay',
     opacity: 'Opacity', hintSelect: 'Select a case on the left', frame: 'Frame', slice: 'Slice',
     apexStart: 'First apical slice', setApex: 'Use current slice as apex', confirmApex: 'Confirm suggestion',
     sliceOrder: 'Slice order', baseFirst: 'base → apex', apexFirst: 'apex → base',
-    results: 'Results', noResults: 'Volumes and EF appear after segmentation.',
+    results: 'Segmentation check', noResults: 'Slices worth a look are listed here after segmentation.',
     st_pending: 'Pending', st_queued: 'Queued', st_running: 'Segmenting', st_review: 'Check apex',
     st_done: 'Done', st_error: 'Error',
     suggested: 'suggested', confirmed: 'confirmed',
     lv_basal: 'basal', lv_mid: 'mid', lv_apical: 'apical', lv_apex: 'apex cap',
-    added: n => `Added ${n} case(s)`, queued: n => `Queued ${n} case(s)`, exported: p => `Exported: ${p}`,
+    added: n => `Added ${n} case(s)`, queued: n => `Queued ${n} case(s)`,
     downloading: (m, p) => `Downloading model ${m} … ${p}`, runningCase: (n, p) => `Segmenting: ${n} ${p}`,
     queueLeft: n => `, ${n} queued`, idle: 'Idle', apexSaved: k => `Apex set to slice ${k}; AHA updated`,
     confirmRemove: n => `Remove ${n} case(s) from the list? (files are kept)`,
-    lvEf: 'LV EF', rvEf: 'RV EF', volCurve: 'Volume–time curve (mL)', table: 'Values',
-    edv: 'EDV', esv: 'ESV', sv: 'SV', mass: 'Myocardial mass', edFrame: 'ED frame', esFrame: 'ES frame',
-    singleFrame: 'Single frame: no EF.', notSegmented: 'Not segmented yet.', error: 'Error',
+    notSegmented: 'Not segmented yet.', error: 'Error',
     lblLV: 'LV blood', lblMYO: 'Myocardium', lblRV: 'RV blood', basal: 'Basal', mid: 'Mid', apical: 'Apical', apex: 'Apex',
     modelMissing: ' (downloaded on first use)',
-    calib: 'ED / ES and slices', auto: 'auto', manual: 'manual', resetPhases: 'Automatic ED/ES',
-    useFrame: f => `Use current frame (${f})`, setSlice: k => `Set to current slice (${k})`, clear: 'Clear', all: 'all',
-    setTo: v => `Set to ${v}`,
-    exclTitle: 'Slices not counted', checksTitle: 'Worth checking',
-    dontCount: ch => `Don't count this slice for ${ch}`, countAgain: ch => `Count for ${ch} again`,
-    atSlice: (ph, f, k) => `Now ${ph} (frame ${f}) · slice ${k}`,
-    goPhase: 'Go to ED or ES to exclude a slice:', show: 'Show',
-    chkBigger: (z, ch, es, ed) => `slice ${z}: ${ch} larger at ES than at ED (${es} vs ${ed} voxels), possibly a structure outside the ventricle`,
-    chkGap: (z, ph, ch, a, n) => `slice ${z}: ${ch} possibly missed at ${ph} (${a} voxels, neighbours ${n})`,
-    chkBasal: (z, ch) => `Check whether the basal-most ${ch} slice at ES (slice ${z}) is already atrium; if so, don't count it`,
-    chkRing: (z, p) => `slice ${z}: only ${p}% of the basal-most LV at ES is enclosed by myocardium, probably atrium; consider not counting it`,
-    autoTag: 'auto',
-    autoNote: 'Slices marked auto have a cavity far larger at ES than at ED (usually a structure below the apex) and are left out automatically; × counts them again.',
-    edRule: 'Automatic ED', edRuleMax: 'largest LV volume', edRuleFirst: 'first frame (R-wave triggered)',
-    rule_max_volume: 'max volume', rule_first_frame: 'first frame', rule_min: 'min volume',
-    excluded: (ph, ch) => `${ch} not counted at ${ph}`, curveNote: 'Curves include all slices; exclusions are not applied.',
-    now: (f, k) => `Now: frame ${f} · slice ${k}`,
+    phases: (ed, es) => `ED frame ${ed} · ES frame ${es} (largest / smallest LV blood pool)`,
+    checksTitle: 'Worth checking', show: 'Show', flagged: 'flagged',
+    checksNone: 'The automatic checks found nothing. Still worth stepping through the slices with Contours.',
+    checksNote: 'The automatic checks only catch clear errors: a cavity larger at ES than at ED, a missed slice, a basal LV not enclosed by myocardium.',
+    singleFrame: 'Single frame: the ED/ES comparisons need a cine.',
+    chkBigger: (z, ch, es, ed) => `slice ${z}: ${ch} larger at ES than at ED (${es} vs ${ed} mm²), the label may cover a structure outside the ventricle`,
+    chkGap: (z, ph, ch, a, n) => `slice ${z}: ${ch} possibly missed at ${ph} (${a} mm², neighbouring slices ${n} mm²)`,
+    chkRing: (z, p) => `slice ${z}: only ${p}% of the basal-most LV at ES is enclosed by myocardium, the LV label may include atrium`,
+    outputs: 'Output files',
   },
 };
 let lang = 'en';
@@ -137,13 +119,12 @@ function ahaColors() {
 // ---------------------------------------------------------------- state
 const S = {
   state: null, selected: null, checked: new Set(),
-  view: 'single', overlay: 'seg', opacity: 0.45,
+  view: 'single', zoom: 'heart', overlay: 'seg', opacity: 0.45,
   frame: 0, slice: null, playing: null,
   loadedKey: null, ahaKey: null, loading: false, message: '', error: false,
 };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const fmt = (v, d = 1) => (v === null || v === undefined ? '–' : Number(v).toFixed(d));
 
 async function api(path, body) {
   const opt = body === undefined ? {} : {
@@ -163,7 +144,7 @@ function say(msg, isError = false) {
 const guard = fn => async (...a) => { try { await fn(...a); } catch (e) { say(`${t('error')}: ${e.message}`, true); } };
 
 const selectedCase = () => S.state && S.state.cases.find(c => c.id === S.selected);
-const isSegmented = c => c && ['review', 'done'].includes(c.status) && c.metrics;
+const isSegmented = c => !!(c && ['review', 'done'].includes(c.status) && c.levels);
 
 // ---------------------------------------------------------------- polling
 async function refresh() {
@@ -209,7 +190,6 @@ function renderTop(st) {
   }
   if (document.activeElement !== sel) sel.value = st.settings.model;
   document.querySelectorAll('[data-setting]').forEach(el => { el.checked = !!st.settings[el.dataset.setting]; });
-  if (document.activeElement !== $('edRule')) $('edRule').value = st.settings.ed_rule || 'max_volume';
   $('workspace').textContent = st.workspace;
 
   const checked = [...S.checked].filter(id => st.cases.some(c => c.id === id));
@@ -233,14 +213,14 @@ function renderCases(st) {
   $('caseEmpty').innerText = t('emptyCases');
   const rows = st.cases.map(c => {
     const apex = c.apex_slice === null ? '–' : (c.apex_confirmed ? `${c.apex_slice}` : `${c.apex_slice}?`);
-    const ef = c.metrics ? fmt(c.metrics.LV_EF_pct) : '–';
-    const nWarn = c.metrics ? openChecks(c).length : 0;
-    const warn = nWarn ? ` <span class="warn-mark" title="${esc(t('checksTitle'))}: ${nWarn}">⚠${nWarn}</span>` : '';
+    const nWarn = (c.checks || []).length;
+    const qc = !isSegmented(c) ? '–' : nWarn
+      ? `<span class="warn-mark" title="${esc(t('checksTitle'))}: ${nWarn}">⚠ ${nWarn}</span>` : '<span class="ok-mark">✓</span>';
     const msg = c.message && c.status === 'error' ? `<div class="case-msg">${esc(c.message)}</div>` : '';
     return `<tr class="row${c.id === S.selected ? ' selected' : ''}" data-id="${c.id}" title="${esc(c.path)}">
       <td><input type="checkbox" data-check="${c.id}"${S.checked.has(c.id) ? ' checked' : ''}></td>
       <td class="name">${esc(c.name)}${msg}</td><td>${chip(c)}</td>
-      <td class="num">${esc(apex)}</td><td class="num">${esc(ef)}${warn}</td></tr>`;
+      <td class="num">${esc(apex)}</td><td class="num">${qc}</td></tr>`;
   }).join('');
   if (body.dataset.html !== rows) { body.innerHTML = rows; body.dataset.html = rows; }
   $('checkAll').checked = st.cases.length > 0 && st.cases.every(c => S.checked.has(c.id));
@@ -278,16 +258,11 @@ function renderViewerBars(c) {
   fr.disabled = !S.loadedKey || nt < 2;
   const level = seg && S.slice !== null && c.levels ? c.levels[S.slice] : null;
   const notes = level ? [t('lv_' + level)] : [];
-  if (seg && S.slice !== null) {
-    [['ED', c.ed], ['ES', c.es]].forEach(([ph, f]) => {
-      if (f !== S.frame) return;
-      ['LV', 'RV'].forEach(ch => { if (isExcluded(c, ph, ch, S.slice)) notes.push(t('excluded', ph, ch)); });
-    });
-  }
+  const flagged = seg && (c.checks || []).some(k => k.slice === S.slice && frameOf(c, k) === S.frame);
+  if (flagged) notes.push(`⚠ ${t('flagged')}`);
   $('levelTag').classList.toggle('hidden', !notes.length);
-  $('levelTag').classList.toggle('warn', notes.length > 1);
+  $('levelTag').classList.toggle('warn', flagged);
   $('levelTag').textContent = notes.join(' · ');
-  renderCalib(c);
 
   $('apexValue').textContent = seg && c.apex_slice !== null ? c.apex_slice : '–';
   const tag = $('apexTag');
@@ -300,6 +275,10 @@ function renderViewerBars(c) {
   so.disabled = !seg;
   if (seg && document.activeElement !== so) so.value = c.base_first === false ? '0' : '1';
   document.querySelectorAll('#viewMode button').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
+  document.querySelectorAll('#zoomMode button').forEach(b => {
+    b.classList.toggle('on', b.dataset.v === (seg && c.crop ? S.zoom : 'full'));
+    b.disabled = !seg || !c.crop;
+  });
   document.querySelectorAll('#overlayMode button').forEach(b => {
     b.classList.toggle('on', b.dataset.v === S.overlay);
     b.disabled = b.dataset.v !== 'none' && !seg;
@@ -307,219 +286,48 @@ function renderViewerBars(c) {
 }
 
 // ---------------------------------------------------------------- results
-function renderResults(c) {
-  const box = $('results');
-  const key = c ? JSON.stringify([c.id, c.status, c.metrics, c.ed, c.es, c.excluded_effective, lang, c.message]) : 'none';
-  if (box.dataset.key === key) return;
-  box.dataset.key = key;
-  if (!c) { box.innerHTML = `<div class="empty">${esc(t('noResults'))}</div>`; return; }
-  if (!isSegmented(c)) {
-    const msg = c.status === 'error' ? `<div class="case-msg">${esc(c.message)}</div>` : '';
-    box.innerHTML = `<div class="info"><b>${esc(c.name)}</b><br><span class="mono">${esc(c.path)}</span></div>
-      <div class="empty">${esc(t('notSegmented'))}</div>${msg}`;
-    return;
-  }
-  const m = c.metrics;
-  const multi = c.shape[3] > 1;
-  const row = (k, lv, rv, unit, d = 1) =>
-    `<tr><th>${esc(k)} <span class="muted">${unit}</span></th><td>${fmt(lv, d)}</td><td>${fmt(rv, d)}</td></tr>`;
-  box.innerHTML = `
-    <div class="hero">
-      <div class="tile"><div class="k">${t('lvEf')}</div><div class="v">${fmt(m.LV_EF_pct)}<small>%</small></div></div>
-      <div class="tile"><div class="k">${t('rvEf')}</div><div class="v">${fmt(m.RV_EF_pct)}<small>%</small></div></div>
-    </div>
-    ${multi ? '' : `<div class="info">${esc(t('singleFrame'))}</div>`}
-    <table class="metrics">
-      <thead><tr><th></th><th style="text-align:right">LV</th><th style="text-align:right">RV</th></tr></thead>
-      <tbody>
-        ${row(t('edv'), m.LV_EDV_mL, m.RV_EDV_mL, 'mL')}
-        ${row(t('esv'), m.LV_ESV_mL, m.RV_ESV_mL, 'mL')}
-        ${row(t('sv'), m.LV_SV_mL, m.RV_SV_mL, 'mL')}
-        <tr><th>${esc(t('mass'))} <span class="muted">g</span></th><td>${fmt(m.LV_mass_g)}</td><td>–</td></tr>
-      </tbody>
-    </table>
-    ${multi ? '<div id="calib" class="chart-card"></div>' : ''}
-    <div class="info">${esc(c.model)}<br><span class="mono">${esc(c.path)}</span></div>
-    ${multi ? `<div class="chart-card">
-      <div class="chart-title">${esc(t('volCurve'))}
-        <span class="key"><i style="background:var(--series-lv)"></i>LV</span>
-        <span class="key"><i style="background:var(--series-rv)"></i>RV</span></div>
-      <div class="chart" id="chart"></div>
-      ${hasExclusions(c) ? `<div class="info">${esc(t('curveNote'))}</div>` : ''}
-      <details><summary>${esc(t('table'))}</summary><div id="curveTable"></div></details>
-    </div>` : ''}`;
-  if (multi) { drawChart(c); renderCalib(c, true); }
-}
-
-const hasExclusions = c => ['ED', 'ES'].some(ph => ['LV', 'RV'].some(ch => c.excluded_effective[ph][ch].length));
-const isExcluded = (c, phase, chamber, k) => !!(c.excluded_effective && c.excluded_effective[phase][chamber].includes(k));
-const isAuto = (c, phase, chamber, k) => !!(c.auto_excluded && c.auto_excluded[phase][chamber].includes(k));
-const phaseOfFrame = c => (S.frame === c.ed ? 'ED' : S.frame === c.es ? 'ES' : null);
-const openChecks = c => (c.checks || []).filter(k => k.kind !== 'basal' && !isExcluded(c, k.phase, k.chamber, k.slice));
-const ringPct = v => Math.round(v * 100);
-const hasAuto = c => ['ED', 'ES'].some(ph => ['LV', 'RV'].some(ch => c.auto_excluded[ph][ch].some(z => isExcluded(c, ph, ch, z))));
+const frameOf = (c, k) => (k.phase === 'ED' ? c.ed : c.es);
 
 function checkText(k) {
   if (k.kind === 'es_gt_ed') return t('chkBigger', k.slice, k.chamber, k.es, k.ed);
   if (k.kind === 'gap') return t('chkGap', k.slice, k.phase, k.chamber, k.area, k.neighbours);
-  if (k.kind === 'open_ring') return t('chkRing', k.slice, ringPct(k.coverage));
-  return t('chkBasal', k.slice, k.chamber);
+  if (k.kind === 'open_ring') return t('chkRing', k.slice, Math.round(k.coverage * 100));
+  return `slice ${k.slice}: ${k.kind}`;
 }
 
-function renderCalib(c, force = false) {
-  const box = $('calib');
-  if (!box || !isSegmented(c) || c.shape[3] < 2) return;
-  const key = JSON.stringify([c.id, c.ed, c.es, c.ed_manual, c.es_manual, c.excluded_effective, c.checks, S.frame, S.slice,
-    lang, S.state.settings.ed_rule]);
-  if (!force && box.dataset.key === key) return;
+function renderResults(c) {
+  const box = $('results');
+  const key = c ? JSON.stringify([c.id, c.status, c.model, c.ed, c.es, c.checks, c.outputs, lang, c.message]) : 'none';
+  if (box.dataset.key === key) return;
   box.dataset.key = key;
-  const rule = S.state.settings.ed_rule || 'max_volume';
-  const src = (manual, autoRule) => `<span class="tag${manual === null ? '' : ' ok'}">${esc(manual === null
-    ? `${t('auto')} · ${t('rule_' + autoRule)}` : t('manual'))}</span>`;
-  const phase = phaseOfFrame(c);
-  const k = S.slice;
-
-  let toggles;
-  if (phase && k !== null) {
-    toggles = ['LV', 'RV'].map(ch => {
-      const on = isExcluded(c, phase, ch, k);
-      return `<button class="small${on ? ' on' : ''}" data-exclude="${phase},${ch},${k},${on ? 0 : 1}">
-        ${esc(on ? t('countAgain', ch) : t('dontCount', ch))}</button>`;
-    }).join(' ');
-    toggles = `<div class="info">${esc(t('atSlice', phase, S.frame, k))}</div><div>${toggles}</div>`;
-  } else {
-    toggles = `<div class="info">${esc(t('goPhase'))}
-      <button class="small" data-goto="${c.ed},${k ?? ''}">ED</button>
-      <button class="small" data-goto="${c.es},${k ?? ''}">ES</button></div>`;
+  if (!c) { box.innerHTML = `<div class="empty">${esc(t('noResults'))}</div>`; return; }
+  const info = `<div class="info"><b>${esc(c.name)}</b><br><span class="mono">${esc(c.path)}</span></div>`;
+  if (!isSegmented(c)) {
+    const msg = c.status === 'error' ? `<div class="case-msg">${esc(c.message)}</div>` : '';
+    box.innerHTML = `${info}<div class="empty">${esc(t('notSegmented'))}</div>${msg}`;
+    return;
   }
-
-  const lists = ['ED', 'ES'].map(ph => ['LV', 'RV'].map(ch => c.excluded_effective[ph][ch].map(z =>
-    `<span class="tag ok">${ph} ${ch} · slice ${z}${isAuto(c, ph, ch, z) ? ` · ${esc(t('autoTag'))}` : ''}
-      <button class="chip-x" data-exclude="${ph},${ch},${z},0" title="${esc(t('countAgain', ch))}">×</button></span>`
-  ).join(' ')).join(' ')).join(' ').trim();
-
-  const checks = (c.checks || []).map(chk => {
-    const done = chk.kind !== 'basal' && isExcluded(c, chk.phase, chk.chamber, chk.slice);
-    const icon = chk.kind === 'basal' ? 'ⓘ' : done ? '✓' : '⚠';
-    const f = chk.phase === 'ED' ? c.ed : c.es;
-    return `<li class="${chk.kind === 'basal' ? 'note' : done ? 'done' : 'warn'}"><span class="ico">${icon}</span>
-      <span>${esc(checkText(chk))}</span>
-      <button class="small" data-goto="${f},${chk.slice}">${esc(t('show'))}</button></li>`;
-  }).join('');
-
-  box.innerHTML = `
-    <div class="chart-title">${esc(t('calib'))}</div>
-    <table class="metrics calib">
-      <tr><th>ED</th><td>frame <b>${c.ed}</b> ${src(c.ed_manual, rule)}</td>
-        <td><button class="small" data-phase="ed" title="${esc(t('useFrame', S.frame))}">${esc(t('setTo', S.frame))}</button></td></tr>
-      <tr><th>ES</th><td>frame <b>${c.es}</b> ${src(c.es_manual, 'min')}</td>
-        <td><button class="small" data-phase="es" title="${esc(t('useFrame', S.frame))}">${esc(t('setTo', S.frame))}</button></td></tr>
-    </table>
-    ${c.ed_manual !== null || c.es_manual !== null
-      ? `<button class="small" data-phase="reset">${esc(t('resetPhases'))}</button>` : ''}
-    <div class="sub-title">${esc(t('exclTitle'))}</div>
-    ${toggles}
-    ${lists ? `<div class="excl-list">${lists}</div>` : ''}
-    ${hasAuto(c) ? `<div class="info">${esc(t('autoNote'))}</div>` : ''}
-    ${checks ? `<div class="sub-title">${esc(t('checksTitle'))}</div><ul class="checks">${checks}</ul>` : ''}`;
+  const multi = c.shape[3] > 1;
+  const checks = (c.checks || []).map(k => `<li class="warn"><span class="ico">⚠</span>
+      <span>${esc(checkText(k))}</span>
+      <button class="small" data-goto="${frameOf(c, k)},${k.slice}">${esc(t('show'))}</button></li>`).join('');
+  const outputs = Object.values(c.outputs || {}).map(p => `<li class="mono">${esc(p)}</li>`).join('');
+  box.innerHTML = `${info}
+    <div class="info">${esc(c.model)}${multi ? `<br>${esc(t('phases', c.ed, c.es))}` : ''}</div>
+    <div class="card">
+      <div class="card-title">${esc(t('checksTitle'))}</div>
+      ${!multi ? `<div class="info">${esc(t('singleFrame'))}</div>`
+        : checks ? `<ul class="checks">${checks}</ul>`
+        : `<ul class="checks"><li class="done"><span class="ico">✓</span><span>${esc(t('checksNone'))}</span></li></ul>`}
+      <div class="info">${esc(t('checksNote'))}</div>
+    </div>
+    ${outputs ? `<div class="sub-title">${esc(t('outputs'))}</div><ul class="outputs">${outputs}</ul>` : ''}`;
 }
 
 async function gotoFrameSlice(f, k) {
   if (S.view === 'mosaic') { S.view = 'single'; applyView(); }
   setFrame(f);
   if (k !== '' && k !== undefined && k !== null) goToSlice(+k);
-}
-
-function niceMax(v) {
-  if (v <= 0) return 1;
-  const p = Math.pow(10, Math.floor(Math.log10(v)));
-  return [1, 2, 2.5, 5, 10].map(f => f * p).find(x => x >= v);
-}
-
-function drawChart(c) {
-  const host = $('chart');
-  const lv = c.curves.LV, rv = c.curves.RV;
-  const n = lv.length;
-  const W = Math.max(240, host.clientWidth || 280), H = 170;
-  const m = { l: 34, r: 24, t: 18, b: 22 };
-  const ymax = niceMax(Math.max(...lv, ...rv) * 1.05);
-  const x = i => m.l + (n === 1 ? 0 : i / (n - 1)) * (W - m.l - m.r);
-  const y = v => H - m.b - v / ymax * (H - m.t - m.b);
-  const path = arr => arr.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
-  const ticks = [0, 0.5, 1].map(f => f * ymax);
-  const NS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', t('volCurve'));
-  const add = (tag, attrs, text) => {
-    const el = document.createElementNS(NS, tag);
-    Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
-    if (text !== undefined) el.textContent = text;
-    svg.appendChild(el);
-    return el;
-  };
-  ticks.forEach(v => {
-    add('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: 'var(--grid)', 'stroke-width': 1 });
-    add('text', { x: m.l - 6, y: y(v) + 4, 'text-anchor': 'end', 'font-size': 10, fill: 'var(--muted)' }, Math.round(v));
-  });
-  add('line', { x1: m.l, x2: W - m.r, y1: y(0), y2: y(0), stroke: 'var(--axis)', 'stroke-width': 1 });
-  const anchor = f => (f === 0 ? 'start' : f === n - 1 ? 'end' : 'middle');
-  [[c.ed, 'ED'], [c.es, 'ES']].forEach(([f, label]) => {
-    add('line', { x1: x(f), x2: x(f), y1: m.t, y2: H - m.b, stroke: 'var(--axis)', 'stroke-width': 1 });
-    add('text', { x: x(f) + (f === 0 ? 3 : f === n - 1 ? -3 : 0), y: m.t - 4, 'text-anchor': anchor(f), 'font-size': 10, fill: 'var(--ink-2)' }, label);
-  });
-  [0, n - 1].forEach(f => add('text', { x: x(f), y: H - 6, 'text-anchor': 'middle', 'font-size': 10, fill: 'var(--muted)' }, f));
-  const cur = add('line', { x1: x(S.frame), x2: x(S.frame), y1: m.t, y2: H - m.b, stroke: 'var(--ink-2)', 'stroke-width': 1, 'stroke-dasharray': '' });
-  add('path', { d: path(lv), fill: 'none', stroke: 'var(--series-lv)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
-  add('path', { d: path(rv), fill: 'none', stroke: 'var(--series-rv)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
-  if (Math.abs(y(lv[n - 1]) - y(rv[n - 1])) >= 12) {  // converging ends: legend + tooltip only
-    add('text', { x: x(n - 1) + 4, y: y(lv[n - 1]) + 4, 'font-size': 10, fill: 'var(--ink-2)' }, 'LV');
-    add('text', { x: x(n - 1) + 4, y: y(rv[n - 1]) + 4, 'font-size': 10, fill: 'var(--ink-2)' }, 'RV');
-  }
-  const hover = add('line', { x1: 0, x2: 0, y1: m.t, y2: H - m.b, stroke: 'var(--muted)', 'stroke-width': 1, visibility: 'hidden' });
-  host.innerHTML = '';
-  host.appendChild(svg);
-  const tip = document.createElement('div');
-  tip.className = 'tip hidden';
-  host.appendChild(tip);
-
-  const frameAt = ev => {
-    const r = svg.getBoundingClientRect();
-    const px = (ev.clientX - r.left) * W / r.width;
-    return Math.max(0, Math.min(n - 1, Math.round((px - m.l) / (W - m.l - m.r) * (n - 1))));
-  };
-  svg.addEventListener('pointermove', ev => {
-    const f = frameAt(ev);
-    hover.setAttribute('x1', x(f)); hover.setAttribute('x2', x(f));
-    hover.setAttribute('visibility', 'visible');
-    tip.replaceChildren();
-    const head = document.createElement('div');
-    head.textContent = `Frame ${f}${f === c.ed ? ' · ED' : ''}${f === c.es ? ' · ES' : ''}`;
-    tip.appendChild(head);
-    [['LV', lv[f], '--series-lv'], ['RV', rv[f], '--series-rv']].forEach(([name, v, col]) => {
-      const r = document.createElement('div');
-      r.className = 'tip-row';
-      const k = document.createElement('i'); k.style.background = `var(${col})`;
-      const b = document.createElement('b'); b.textContent = `${fmt(v)} mL`;
-      const s = document.createElement('span'); s.className = 'muted'; s.textContent = name;
-      r.append(k, b, s);
-      tip.appendChild(r);
-    });
-    tip.classList.remove('hidden');
-    const rect = svg.getBoundingClientRect();
-    const left = x(f) * rect.width / W;
-    tip.style.left = `${Math.min(left + 8, rect.width - tip.offsetWidth - 4)}px`;
-    tip.style.top = '4px';
-  });
-  svg.addEventListener('pointerleave', () => { hover.setAttribute('visibility', 'hidden'); tip.classList.add('hidden'); });
-  svg.addEventListener('click', ev => setFrame(frameAt(ev)));
-  S.chartCursor = f => { cur.setAttribute('x1', x(f)); cur.setAttribute('x2', x(f)); };
-
-  const tbl = $('curveTable');
-  const rows = lv.map((v, i) => `<tr><th>${i}</th><td>${fmt(v)}</td><td>${fmt(c.curves.MYO[i])}</td><td>${fmt(rv[i])}</td></tr>`).join('');
-  tbl.innerHTML = `<table class="metrics"><thead><tr><th>Frame</th><th style="text-align:right">LV</th>
-    <th style="text-align:right">${esc(t('lblMYO'))}</th><th style="text-align:right">RV</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 // ---------------------------------------------------------------- viewer
@@ -543,7 +351,7 @@ function showReadout(d) {
   if (!c || !d.values) { el.classList.add('hidden'); return; }
   const val = name => { const v = d.values.find(x => x.name === name); return v ? Math.round(v.value) : 0; };
   const parts = [`slice ${S.slice}`];
-  if (S.overlay === 'seg') {
+  if (S.overlay === 'seg' || S.overlay === 'edge') {
     const s = val('seg.nii');
     if (s) parts.push([null, t('lblLV'), t('lblMYO'), t('lblRV')][s]);
   } else if (S.overlay === 'aha') {
@@ -556,8 +364,8 @@ function showReadout(d) {
 
 function renderLegend() {
   const el = $('legend');
-  if (!S.loadedKey || S.overlay === 'none' || nv.volumes.length < 2) { el.classList.add('hidden'); return; }
-  const items = S.overlay === 'seg'
+  if (!S.loadedKey || S.overlay === 'none' || !volIndex('seg.nii')) { el.classList.add('hidden'); return; }
+  const items = S.overlay === 'seg' || S.overlay === 'edge'
     ? [[SEG_COLORS[1], t('lblLV')], [SEG_COLORS[2], t('lblMYO')], [SEG_COLORS[3], t('lblRV')]]
     : [[AHA_LEVEL[0][1], `${t('basal')} 1–6`], [AHA_LEVEL[1][1], `${t('mid')} 7–12`],
       [AHA_LEVEL[2][1], `${t('apical')} 13–16`], [AHA_APEX, `${t('apex')} 17`]];
@@ -570,40 +378,56 @@ function renderLegend() {
   el.classList.remove('hidden');
 }
 
-const volUrl = (c, kind, v = '') => `/api/cases/${c.id}/volume/${kind}.nii${v ? `?v=${encodeURIComponent(v)}` : ''}`;
+const zoomed = c => isSegmented(c) && !!c.crop && S.zoom === 'heart';
+const volUrl = (c, kind, v = '') => {
+  const q = new URLSearchParams();
+  if (zoomed(c)) q.set('crop', '1');
+  if (v) q.set('v', v);
+  return `/api/cases/${c.id}/volume/${kind}.nii${q.toString() ? `?${q}` : ''}`;
+};
 const ahaVersion = c => `${c.apex_slice}-${c.base_first}-${c.model}`;
+const volIndex = name => { const i = nv.volumes.findIndex(v => v.name === name); return i < 0 ? 0 : i; };
+const segLut = () => lut(SEG_COLORS, ['', 'LV', 'MYO', 'RV']);
+const ahaLut = () => lut(ahaColors(), AHA_NAMES.map((n, i) => (i ? `${i}` : '')));
 
 async function maybeLoadCase(c) {
   const seg = isSegmented(c);
-  const key = `${c.id}|${seg ? c.model : 'raw'}`;
+  const key = `${c.id}|${seg ? c.model : 'raw'}|${zoomed(c) ? c.crop.join(',') : 'full'}`;
   if (S.loading) return;
   if (key === S.loadedKey) {
     if (seg && ahaVersion(c) !== S.ahaKey) await reloadAha(c);
     return;
   }
+  // a zoom change keeps the frame and slice; a new case or segmentation starts over
+  const samePlace = S.loadedKey && S.loadedKey.split('|').slice(0, 2).join('|') === key.split('|').slice(0, 2).join('|');
   S.loading = true;
   try {
     $('canvasHint').textContent = '…';
     $('canvasHint').classList.remove('hidden');
     stopPlay();
+    const stamp = Date.now();
     const vols = [{ url: volUrl(c, 'image'), name: 'image.nii' }];
     if (seg) {
-      vols.push({ url: volUrl(c, 'seg', Date.now()), name: 'seg.nii' });
+      vols.push({ url: volUrl(c, 'seg', stamp), name: 'seg.nii' });
+      vols.push({ url: volUrl(c, 'edge', stamp), name: 'edge.nii' });
       vols.push({ url: volUrl(c, 'aha', ahaVersion(c)), name: 'aha.nii' });
     }
     await nv.loadVolumes(vols);
     if (seg) {
-      nv.volumes[1].setColormapLabel(lut(SEG_COLORS, ['', 'LV', 'MYO', 'RV']));
-      nv.volumes[2].setColormapLabel(lut(ahaColors(), AHA_NAMES.map((n, i) => (i ? `${i}` : ''))));
+      nv.volumes[volIndex('seg.nii')].setColormapLabel(segLut());
+      nv.volumes[volIndex('edge.nii')].setColormapLabel(segLut());
+      nv.volumes[volIndex('aha.nii')].setColormapLabel(ahaLut());
       S.ahaKey = ahaVersion(c);
     } else if (S.overlay !== 'none') {
       S.overlay = 'seg';
     }
     S.loadedKey = key;
-    const nz = c.shape ? c.shape[2] : nv.volumes[0].dims[3];
-    S.frame = seg && c.ed !== null ? c.ed : 0;
-    S.slice = seg && c.levels ? c.levels.findIndex(l => l === 'mid') : Math.floor(nz / 2);
-    if (S.slice < 0) S.slice = Math.floor(nz / 2);
+    const nz = c.shape ? c.shape[2] : nv.volumes[0].hdr.dims[3];
+    if (!samePlace) {
+      S.frame = seg && c.ed !== null ? c.ed : 0;
+      S.slice = seg && c.levels ? c.levels.findIndex(l => l === 'mid') : Math.floor(nz / 2);
+      if (S.slice < 0) S.slice = Math.floor(nz / 2);
+    }
     applyOverlay();
     applyFrame();
     applyView();
@@ -619,12 +443,12 @@ async function maybeLoadCase(c) {
 }
 
 async function reloadAha(c) {
-  if (nv.volumes.length < 3) return;
+  const old = nv.volumes.find(v => v.name === 'aha.nii');
+  if (!old) return;
   S.loading = true;
   try {
-    const old = nv.volumes[2];
     const vol = await niivue.NVImage.loadFromUrl({ url: volUrl(c, 'aha', ahaVersion(c)), name: 'aha.nii' });
-    vol.setColormapLabel(lut(ahaColors(), AHA_NAMES.map((n, i) => (i ? `${i}` : ''))));
+    vol.setColormapLabel(ahaLut());
     nv.removeVolume(old);
     nv.addVolume(vol);
     S.ahaKey = ahaVersion(c);
@@ -636,20 +460,18 @@ async function reloadAha(c) {
 }
 
 function applyOverlay() {
-  if (nv.volumes.length >= 3) {
-    nv.setOpacity(1, S.overlay === 'seg' ? S.opacity : 0);
-    nv.setOpacity(2, S.overlay === 'aha' ? S.opacity : 0);
-  }
+  [['seg.nii', 'seg', S.opacity], ['edge.nii', 'edge', 1], ['aha.nii', 'aha', S.opacity]].forEach(([name, mode, op]) => {
+    if (nv.volumes.some(v => v.name === name)) nv.setOpacity(volIndex(name), S.overlay === mode ? op : 0);
+  });
   renderLegend();
 }
 function applyFrame() {
   nv.volumes.forEach(v => { if (v.nFrame4D > 1) nv.setFrame4D(v.id, S.frame); });
-  if (S.chartCursor) S.chartCursor(S.frame);
 }
 function applyView() {
   const c = selectedCase();
   if (S.view === 'mosaic' && nv.volumes.length) {
-    const [nx, ny, nz] = [c.shape[0], c.shape[1], c.shape[2]];
+    const [, nx, ny, nz] = nv.volumes[0].hdr.dims;  // cropped when zoomed
     const [dx, dy, dz] = c.zooms || [1, 1, 1];
     const canvas = $('gl');
     const W = canvas.clientWidth, H = Math.max(1, canvas.clientHeight);
@@ -672,7 +494,7 @@ function applyView() {
 function goToSlice(k) {
   const c = selectedCase();
   if (!c || !nv.volumes.length) return;
-  const nz = c.shape ? c.shape[2] : nv.volumes[0].dims[3];
+  const nz = c.shape ? c.shape[2] : nv.volumes[0].hdr.dims[3];
   k = Math.max(0, Math.min(nz - 1, k));
   const pos = nv.scene.crosshairPos;
   nv.scene.crosshairPos = [pos[0], pos[1], (k + 0.5) / nz];
@@ -744,7 +566,6 @@ function bind() {
     await refresh();
   });
   $('btnStop').onclick = guard(async () => { await api('/api/stop', {}); await refresh(); });
-  $('btnExport').onclick = guard(async () => { const r = await api('/api/export', {}); say(t('exported', r.path)); });
   $('btnOpenWs').onclick = guard(() => api('/api/open', {}));
   $('btnOpenCase').onclick = guard(() => api('/api/open', { id: S.selected }));
   $('btnRemove').onclick = guard(async () => {
@@ -787,6 +608,9 @@ function bind() {
   document.querySelectorAll('#viewMode button').forEach(b => {
     b.onclick = () => { S.view = b.dataset.v; applyView(); renderViewerBars(selectedCase()); };
   });
+  document.querySelectorAll('#zoomMode button').forEach(b => {
+    b.onclick = () => { S.zoom = b.dataset.v; renderViewerBars(selectedCase()); render(); };
+  });
   document.querySelectorAll('#overlayMode button').forEach(b => {
     b.onclick = () => { S.overlay = b.dataset.v; applyOverlay(); renderViewerBars(selectedCase()); };
   });
@@ -806,25 +630,12 @@ function bind() {
   };
   $('btnSetApex').onclick = guard(() => postApex(S.slice, null));
   $('btnConfirmApex').onclick = guard(() => postApex(selectedCase().apex_slice, null));
-  $('edRule').onchange = guard(async () => { await api('/api/settings', { ed_rule: $('edRule').value }); await refresh(); });
-  $('results').addEventListener('click', guard(async ev => {
-    const c = selectedCase();
-    const b = ev.target.closest('button');
-    if (!c || !b) return;
-    if (b.dataset.phase) {
-      const body = b.dataset.phase === 'reset' ? { reset: true } : { [b.dataset.phase]: S.frame };
-      await api(`/api/cases/${c.id}/phases`, body);
-    } else if (b.dataset.exclude) {
-      const [phase, chamber, z, on] = b.dataset.exclude.split(',');
-      await api(`/api/cases/${c.id}/exclude`, { phase, chamber, slice: +z, exclude: on === '1' });
-    } else if (b.dataset.goto) {
-      const [f, k] = b.dataset.goto.split(',');
-      return gotoFrameSlice(+f, k);
-    } else {
-      return;
-    }
-    await refresh();
-  }));
+  $('results').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-goto]');
+    if (!b || !selectedCase()) return;
+    const [f, k] = b.dataset.goto.split(',');
+    gotoFrameSlice(+f, k);
+  });
   $('sliceOrder').onchange = guard(() => postApex(selectedCase().apex_slice, $('sliceOrder').value === '1'));
 
   document.addEventListener('keydown', ev => {

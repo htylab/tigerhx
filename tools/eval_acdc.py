@@ -9,8 +9,10 @@ never needs to be committed.
     python tools/eval_acdc.py --cases patient001,patient061 --models cine4d_v0006_xy_cine.onnx
     python tools/eval_acdc.py --per-group 4 --ed-rule first_frame --out results.csv
 
-Ground-truth volumes/EF are computed from the labels with the same code as the
-GUI, so differences come from the segmentation and the ED/ES choice only.
+Ground-truth volumes/EF are computed from the labels with the same code
+(tigerhx.core.metrics), so differences come from the segmentation and the
+ED/ES choice only.  The GUI does not report volumes or EF; here they serve as
+a measure of segmentation quality.
 Note: some models (e.g. v0003 '...mms12acdc') were trained on ACDC, which
 makes their scores optimistic.
 """
@@ -121,7 +123,7 @@ def main(argv=None):
     ap.add_argument('--gt-frames', action='store_true',
                     help='use the labelled ED/ES frames (segmentation error only)')
     ap.add_argument('--no-auto-exclude', action='store_true',
-                    help='count every slice (the GUI leaves out ES outlier slices by default)')
+                    help='count every slice (ES outlier slices are left out by default)')
     ap.add_argument('--out', help='per-case CSV')
     args = ap.parse_args(argv)
 

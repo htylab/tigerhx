@@ -102,22 +102,26 @@ def test_full_flow(server, tmp_path):
     aha = nib.Nifti1Image.from_bytes(call(f"/api/cases/{case['id']}/volume/aha.nii"))
     assert set(np.unique(np.asarray(aha.dataobj)[:, :, 4])) - {0} <= set(range(13, 17))
 
-    call(f"/api/cases/{case['id']}/phases", {'es': 2})
-    call(f"/api/cases/{case['id']}/exclude", {'phase': 'ES', 'chamber': 'RV', 'slice': 1})
-    case = call('/api/state')['cases'][0]
-    assert case['es'] == 2 and case['es_manual'] == 2 and case['excluded']['ES']['RV'] == [1]
-    assert case['checks'] and all('kind' in c for c in case['checks'])
-    with pytest.raises(urllib.error.HTTPError) as e:
-        call(f"/api/cases/{case['id']}/exclude", {'phase': 'ES', 'chamber': 'XX', 'slice': 1})
-    assert e.value.code == 400
-    call(f"/api/cases/{case['id']}/phases", {'reset': True})
-    call('/api/settings', {'ed_rule': 'first_frame'})
-    for _ in range(50):  # reanalysis runs in the background
-        case = call('/api/state')['cases'][0]
-        if case['es'] == 3:
+    assert case['ed'] == 0 and case['es'] == 3 and case['checks'] == []
+    x0, x1, y0, y1 = case['crop']
+    for kind in ('image', 'seg', 'edge', 'aha'):
+        img = nib.Nifti1Image.from_bytes(call(f"/api/cases/{case['id']}/volume/{kind}.nii?crop=1"))
+        assert img.shape == (x1 - x0, y1 - y0) + seg.shape[2:]
+    edge = nib.Nifti1Image.from_bytes(call(f"/api/cases/{case['id']}/volume/edge.nii"))
+    assert ((np.asarray(edge.dataobj) == 0) | (np.asarray(edge.dataobj) == seg)).all()
+    for path, body in ((f"/api/cases/{case['id']}/phases", {'es': 2}), ('/api/export', {})):
+        with pytest.raises(urllib.error.HTTPError) as e:
+            call(path, body)
+        assert e.value.code == 404
+
+    # a case analysed by an older version (no zoom box) is refreshed on start
+    with app.project.lock:
+        app.project.cases[case['id']].crop = None
+        app.project.save()
+    from tigerhx.webgui.server import App
+    again = App(app.project.workspace)
+    for _ in range(50):
+        if again.project.cases[case['id']].crop == case['crop']:
             break
         time.sleep(0.1)
-    assert case['ed'] == 0 and case['es'] == 3
-
-    path = call('/api/export', {})['path']
-    assert os.path.isfile(path)
+    assert again.project.cases[case['id']].crop == case['crop']

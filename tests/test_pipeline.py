@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import threading
@@ -72,7 +73,8 @@ def test_project_pipeline(tmp_path, model, cine):
     pipeline.segment_case(proj, case, model)
     assert case.ed == 0 and case.es == 3
     assert case.base_first is True and case.apex_slice == 5 and not case.apex_confirmed
-    assert case.metrics['LV_EF_pct'] > 30
+    assert case.checks == [] and case.levels[7] == 'apex'
+    assert case.crop == io.crop_box(seg) and case.crop[1] - case.crop[0] < seg.shape[0]
 
     out = nib.load(os.path.join(proj.case_dir(case), 'aha17.nii.gz'))
     assert np.asarray(out.dataobj).max() == 17
@@ -90,10 +92,18 @@ def test_project_pipeline(tmp_path, model, cine):
 
     proj.save()
     again = Project(str(tmp_path / 'ws'))
-    assert again.cases[case.id].apex_slice == 4
+    assert again.cases[case.id].apex_slice == 4 and again.cases[case.id].crop == case.crop
 
-    rows = io.read_csv(proj.export_metrics())
-    assert rows[0]['Case'] == 'sub.01/sub.01.cine' and float(rows[0]['LV_EDV_mL']) > 0
+
+def test_older_project_file_loads(tmp_path):
+    ws = tmp_path / 'ws'
+    ws.mkdir()
+    old = {'settings': {'model': 'm.onnx', 'ed_rule': 'first_frame'},
+           'cases': [{'id': 'abc', 'path': '/x/a.nii.gz', 'name': 'a', 'status': 'done',
+                      'metrics': {'LV_EF_pct': 60}, 'excluded': {}, 'curves': {}}]}
+    (ws / 'project.json').write_text(json.dumps(old), encoding='utf-8')
+    proj = Project(str(ws))
+    assert proj.cases['abc'].status == 'done' and 'ed_rule' not in proj.settings
 
 
 def test_cli_run(tmp_path, model, cine):
@@ -119,59 +129,3 @@ def test_guitool_single_row_csv(tmp_path, cine):
     files, options, common = guitool.run_program_gui_interaction(p, Log(), None)
     assert files == [cine[0]] and options[0]['Apex'] == 5 and options[0]['nii_in_inputdir'] == 1
     assert os.path.relpath(files[0], common) == 'sub.01.cine.nii.gz'
-
-
-def test_phase_and_basal_choices(tmp_path, model, cine):
-    proj = Project(str(tmp_path / 'ws'))
-    proj.settings.update(save_mat=False)
-    case = proj.add_paths([cine[0]])[0]
-    pipeline.segment_case(proj, case, model)
-    ef = case.metrics['LV_EF_pct']
-
-    pipeline.set_phases(proj, case, ed=1)
-    assert (case.ed, case.es, case.ed_manual) == (1, 3, 1) and case.metrics['LV_EF_pct'] < ef
-    with pytest.raises(ValueError):
-        pipeline.set_phases(proj, case, es=99)
-    pipeline.set_phases(proj, case, reset=True)
-    assert case.ed == 0 and case.ed_manual is None
-
-    rv_esv = case.metrics['RV_ESV_mL']
-    pipeline.set_excluded(proj, case, 'ES', 'RV', 0)
-    assert case.excluded['ES']['RV'] == [0] and case.metrics['RV_ESV_mL'] < rv_esv
-    pipeline.set_excluded(proj, case, 'ES', 'RV', 0, exclude=False)
-    assert case.excluded['ES']['RV'] == [] and case.metrics['RV_ESV_mL'] == rv_esv
-    with pytest.raises(ValueError):
-        pipeline.set_excluded(proj, case, 'MID', 'RV', 1)
-    assert any(c['kind'] == 'basal' for c in case.checks)
-
-    proj.settings['ed_rule'] = 'first_frame'
-    pipeline.set_excluded(proj, case, 'ED', 'LV', 7)
-    pipeline.set_excluded(proj, case, 'ED', 'LV', 0)
-    proj.save()
-    again = Project(str(tmp_path / 'ws')).cases[case.id]
-    assert again.excluded == {'ED': {'LV': [0, 7], 'RV': []}, 'ES': {'LV': [], 'RV': []}}
-    row = io.read_csv(proj.export_metrics())[0]
-    assert row['Excluded_ED_LV'] == '0 7' and row['ED_source'] == 'first_frame'
-
-
-def test_auto_exclusion_can_be_overridden(tmp_path, model):
-    seg = phantom()
-    seg[30:60, 30:60, 7, 3] = 1  # bogus LV below the apex at ES only
-    path = tmp_path / 'bad.nii.gz'
-    nib.save(nib.Nifti1Image(phantom_image(seg).astype(np.int16), np.diag([1.5, 1.5, 8, 1])), str(path))
-    proj = Project(str(tmp_path / 'ws'))
-    proj.settings.update(save_mat=False)
-    case = proj.add_paths([str(path)])[0]
-    pipeline.segment_case(proj, case, model)
-    pipeline.set_phases(proj, case, ed=0, es=3)  # the bogus region shifts the automatic ED/ES
-    assert case.auto_excluded['ES']['LV'] == [7] and case.excluded_effective['ES']['LV'] == [7]
-    ef_auto = case.metrics['LV_EF_pct']
-
-    pipeline.set_excluded(proj, case, 'ES', 'LV', 7, exclude=False)   # user: count it
-    assert case.kept['ES']['LV'] == [7] and case.excluded_effective['ES']['LV'] == []
-    assert case.metrics['LV_EF_pct'] < ef_auto
-    pipeline.set_excluded(proj, case, 'ES', 'LV', 7, exclude=True)    # back to automatic
-    assert case.kept['ES']['LV'] == [] and case.excluded['ES']['LV'] == []
-    assert case.metrics['LV_EF_pct'] == ef_auto
-    row = io.read_csv(proj.export_metrics())[0]
-    assert row['Excluded_ES_LV'] == '7' and row['Auto_excluded'] == 'ES LV 7'

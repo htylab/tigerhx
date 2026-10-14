@@ -26,7 +26,7 @@ from urllib.parse import parse_qs, urlparse
 import nibabel as nib
 import numpy as np
 
-from tigerhx.core import io, metrics, models, pipeline
+from tigerhx.core import io, models, pipeline
 from tigerhx.core.inference import Cancelled
 from tigerhx.core.project import Project
 
@@ -48,6 +48,7 @@ class App:
         self._cache_lock = threading.Lock()
         self._analysis_lock = threading.Lock()  # one reanalysis at a time
         threading.Thread(target=self._worker, daemon=True).start()
+        threading.Thread(target=self._refresh_old_cases, daemon=True).start()
 
     # ---- state -------------------------------------------------------
     def state(self):
@@ -64,32 +65,30 @@ class App:
                 'running': self.current, 'queued': self.jobs.qsize(),
                 'model_status': dict(self.model_status)}
 
+    def _refresh_old_cases(self):
+        """Cases analysed by an older version lack the zoom box and have the
+        old checks: redo their (cheap) analysis once."""
+        p = self.project
+        with p.lock:
+            old = [c for c in p.cases.values() if c.status in ('review', 'done') and c.crop is None]
+        for case in old:
+            try:
+                if case.status in ('review', 'done') and pipeline.has_seg(p, case):
+                    with self._analysis_lock:
+                        pipeline.analyze_case(p, case)
+                    self.invalidate(case.id, 'aha')
+            except Exception:
+                traceback.print_exc()
+        if old:
+            p.save()
+
     def update_settings(self, values):
         p = self.project
-        rule = values.get('ed_rule')
-        if rule is not None and rule not in metrics.ED_RULES:
-            raise ValueError(f'ed_rule must be one of {metrics.ED_RULES}')
         with p.lock:
             for k in ('model', 'save_mat', 'mat_in_inputdir', 'nii_in_inputdir'):
                 if k in values:
                     p.settings[k] = values[k] if k == 'model' else bool(values[k])
-            changed = rule is not None and rule != p.settings.get('ed_rule')
-            if rule is not None:
-                p.settings['ed_rule'] = rule
             p.save()
-        if changed:  # automatic ED frames move: redo every analysed case
-            threading.Thread(target=self._reanalyze_all, daemon=True).start()
-
-    def _reanalyze_all(self):
-        p = self.project
-        with p.lock:
-            ids = [c.id for c in p.cases.values()
-                   if c.metrics and c.status not in ('queued', 'running')]
-        for cid in ids:
-            try:
-                self._analyze(cid, lambda case: pipeline.analyze_case(p, case))
-            except Exception:
-                traceback.print_exc()
 
     # ---- jobs --------------------------------------------------------
     def run(self, ids):
@@ -188,13 +187,6 @@ class App:
             raise ValueError(f'apex slice must be within 0..{nz - 1}')
         self._analyze(cid, lambda c: pipeline.set_apex(self.project, c, apex_slice, base_first))
 
-    def set_phases(self, cid, ed=None, es=None, reset=False):
-        self._analyze(cid, lambda c: pipeline.set_phases(self.project, c, ed, es, reset))
-
-    def set_excluded(self, cid, phase, chamber, slice_index, exclude):
-        self._analyze(cid, lambda c: pipeline.set_excluded(self.project, c, phase, chamber,
-                                                           slice_index, exclude))
-
     def _write_outputs(self, case):
         try:
             pipeline.write_outputs(self.project, case)
@@ -210,8 +202,10 @@ class App:
             for key in [k for k in self._cache if k[0] == cid and (kind is None or k[1] == kind)]:
                 del self._cache[key]
 
-    def volume(self, cid, kind):
-        key = (cid, kind)
+    def volume(self, cid, kind, crop=False):
+        """Display NIfTI bytes: the image, the labels ('seg'), the AHA map or
+        the label contours ('edge'); crop=True cuts them to the heart."""
+        key = (cid, kind, crop)
         with self._cache_lock:
             if key in self._cache:
                 self._cache.move_to_end(key)
@@ -220,19 +214,24 @@ class App:
         case = p.cases[cid]
         if kind == 'image':
             data, _, _, zooms = io.load_nifti(case.path)
-            body = io.display_nifti_bytes(data, zooms)
         else:
-            fname = {'seg': 'seg.nii.gz', 'aha': 'aha17.nii.gz'}[kind]
+            fname = 'aha17.nii.gz' if kind == 'aha' else 'seg.nii.gz'
             path = join(p.case_dir(case), fname)
             if not isfile(path):
                 raise FileNotFoundError(fname)
-            labels = np.asarray(nib.load(path).dataobj).astype(np.uint8)
-            while labels.ndim < 4:
-                labels = labels[..., None]
-            body = io.display_nifti_bytes(labels, case.zooms or [1, 1, 1], dtype=np.uint8)
+            data = np.asarray(nib.load(path).dataobj).astype(np.uint8)
+            while data.ndim < 4:
+                data = data[..., None]
+            if kind == 'edge':
+                data = io.label_edges(data)
+            zooms = case.zooms or [1, 1, 1]
+        if crop and case.crop:
+            x0, x1, y0, y1 = case.crop
+            data = data[x0:x1, y0:y1]
+        body = io.display_nifti_bytes(data, zooms, dtype=None if kind == 'image' else np.uint8)
         with self._cache_lock:
             self._cache[key] = body
-            while len(self._cache) > 6:
+            while len(self._cache) > 8:
                 self._cache.popitem(last=False)
         return body
 
@@ -326,9 +325,10 @@ def make_handler(app):
                     return self._json(app.state())
                 if len(parts) == 5 and parts[:2] == ['api', 'cases'] and parts[3] == 'volume':
                     kind = parts[4].split('.')[0]
-                    if kind not in ('image', 'seg', 'aha') or parts[2] not in app.project.cases:
+                    if kind not in ('image', 'seg', 'aha', 'edge') or parts[2] not in app.project.cases:
                         return self._json({'error': 'not found'}, 404)
-                    return self._send(200, app.volume(parts[2], kind), 'application/octet-stream')
+                    crop = parse_qs(url.query).get('crop', ['0'])[0] == '1'
+                    return self._send(200, app.volume(parts[2], kind, crop), 'application/octet-stream')
             except FileNotFoundError as e:
                 return self._json({'error': str(e)}, 404)
             except Exception as e:
@@ -357,8 +357,6 @@ def make_handler(app):
                 if parts == ['api', 'settings']:
                     app.update_settings(body)
                     return self._json({'ok': True})
-                if parts == ['api', 'export']:
-                    return self._json({'path': app.project.export_metrics()})
                 if parts == ['api', 'open']:
                     cid = body.get('id')
                     path = app.project.workspace
@@ -371,15 +369,9 @@ def make_handler(app):
                     cid, action = parts[2], parts[3]
                     if cid not in app.project.cases:
                         return self._json({'error': 'not found'}, 404)
-                    if action == 'apex':
-                        app.set_apex(cid, body['apex_slice'], body.get('base_first'))
-                    elif action == 'phases':
-                        app.set_phases(cid, body.get('ed'), body.get('es'), bool(body.get('reset')))
-                    elif action == 'exclude':
-                        app.set_excluded(cid, body['phase'], body['chamber'], body['slice'],
-                                         bool(body.get('exclude', True)))
-                    else:
+                    if action != 'apex':
                         return self._json({'error': 'not found'}, 404)
+                    app.set_apex(cid, body['apex_slice'], body.get('base_first'))
                     return self._json({'ok': True})
             except (ValueError, KeyError) as e:
                 return self._json({'error': str(e)}, 400)
