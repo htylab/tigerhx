@@ -1,0 +1,85 @@
+name: Release
+
+# Run by hand only: Actions -> Release -> Run workflow. Builds both Windows
+# executables from the chosen branch (smoke test included) and uploads them,
+# zipped, to the release for the given tag, creating the tag and release on
+# the built commit if they do not exist yet.
+#
+# Notes for a new release come from doc/release-notes/<tag>.md if that file
+# exists, else from the notes field, else GitHub lists the changes since the
+# previous release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag, e.g. v0.1.0'
+        required: true
+      notes:
+        description: 'Release notes (used when doc/release-notes/<tag>.md does not exist)'
+        required: false
+        default: ''
+      prerelease:
+        description: 'Mark as a pre-release'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check the tag
+      env:
+        TAG: ${{ inputs.tag }}
+      run: |
+        if [[ ! "$TAG" =~ ^v[0-9]+(\.[0-9]+)*([.-][0-9A-Za-z.-]+)?$ ]]; then
+          echo "::error::'$TAG' is not a version tag such as v0.1.0"
+          exit 1
+        fi
+
+  build:
+    needs: check
+    uses: ./.github/workflows/gui-app.yml
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+    - name: Upload the executables to the release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        TAG: ${{ inputs.tag }}
+        NOTES: ${{ inputs.notes }}
+        PRERELEASE: ${{ inputs.prerelease }}
+      run: |
+        zips=()
+        for d in artifacts/*/; do
+          name=$(basename "$d"); name="${name%-windows-latest}"
+          (cd "$d" && zip -9 -q "$GITHUB_WORKSPACE/${name}-${TAG}.zip" *.exe)
+          zips+=("${name}-${TAG}.zip")
+        done
+        ls -l "${zips[@]}"
+        if gh release view "$TAG" > /dev/null 2>&1; then
+          gh release upload "$TAG" "${zips[@]}" --clobber
+        else
+          args=(--target "$GITHUB_SHA" --title "$TAG")
+          if [ -f "doc/release-notes/$TAG.md" ]; then args+=(--notes-file "doc/release-notes/$TAG.md")
+          elif [ -n "$NOTES" ]; then args+=(--notes "$NOTES")
+          else args+=(--generate-notes); fi
+          if [ "$PRERELEASE" = true ]; then args+=(--prerelease); fi
+          gh release create "$TAG" "${zips[@]}" "${args[@]}"
+        fi
+        echo "Release: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"

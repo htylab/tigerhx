@@ -118,6 +118,11 @@ web GUI build leaves out modules it does not use (most of SciPy, matplotlib,
 Pillow, Tcl/Tk), and `tools/smoke_exe.py` then runs the built `.exe` on a
 synthetic case, so a module that is needed but left out fails the build.
 
+To publish a release, run **Actions → Release → Run workflow** on `main` with
+a tag such as `v0.1.0`. It builds both executables and uploads them, zipped,
+to that release (creating the tag and release if needed; notes are taken from
+`doc/release-notes/<tag>.md` when present). It only runs when started by hand.
+
 
 # Label names:
 
