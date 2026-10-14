@@ -47,12 +47,16 @@ Workflow:
    suggested automatically; check them on the images and use
    *Use current slice as apex* or *Confirm suggestion*. The AHA labels and
    metrics are recomputed instantly.
-4. **Check ED/ES and the basal slices** (results panel) – replace the
-   automatic ED or ES frame with the frame on screen, and for each phase
-   (ED/ES) and chamber (LV/RV) set the first basal slice to count, e.g. to drop
-   a basal slice that is already atrium at ES. Metrics update immediately.
+4. **Check ED/ES and the slices** (results panel) – replace the automatic ED
+   or ES frame with the frame on screen, and at ED or ES leave individual
+   slices out of the LV or RV volume, e.g. a basal slice that is already
+   atrium at ES or a slice below the apex the model labelled by mistake.
+   The panel lists slices worth checking: a cavity larger at ES than at ED,
+   a cavity missing between two slices that have it, and the basal-most
+   slice at ES. *Show* jumps to the frame and slice; cases with open
+   warnings are marked ⚠ in the case list. Metrics update immediately.
 5. **Export metrics CSV** – LV/RV EDV, ESV, SV, EF and LV mass for all cases,
-   with the ED/ES frames, how they were chosen and the basal settings.
+   with the ED/ES frames, how they were chosen and the excluded slices.
 
 Files written per case in `<workspace>/cases/<name>/`: `seg.nii.gz`
 (labels 1–3), `aha17.nii.gz` (AHA segments 1–17 on the myocardium) and,

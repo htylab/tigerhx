@@ -194,12 +194,23 @@ def test_ed_rules_and_basal_exclusion():
     assert full['RV_EDV_mL'] == pytest.approx(rv[0], abs=0.01)   # RV at the ED/ES frames
     assert full['RV_ESV_mL'] == pytest.approx(rv[3], abs=0.01)
 
-    basal = {'ED': {'LV': None, 'RV': None}, 'ES': {'LV': None, 'RV': 1}}
-    cut = metrics.compute_metrics(seg, zooms, 0, 3, basal, base_first=True)
+    excluded = {'ED': {'LV': [], 'RV': []}, 'ES': {'LV': [], 'RV': [0]}}
+    cut = metrics.compute_metrics(seg, zooms, 0, 3, excluded)
     assert cut['RV_ESV_mL'] == pytest.approx(rv[3] - (seg[:, :, 0, 3] == 3).sum() * v, abs=0.01)
     assert cut['RV_EDV_mL'] == full['RV_EDV_mL'] and cut['LV_EF_pct'] == full['LV_EF_pct']
-    # reversed stack: slice 6 is the second basal slice, so slice 7 is dropped
-    flipped = metrics.compute_metrics(seg[:, :, ::-1], zooms, 0, 3, {'ES': {'RV': 6}}, base_first=False)
-    assert flipped['RV_ESV_mL'] == cut['RV_ESV_mL']
-    assert list(metrics.included_slices(4, 1, True)) == [False, True, True, True]
-    assert list(metrics.included_slices(4, 2, False)) == [True, True, True, False]
+    assert list(metrics.included_slices(4, [0, 3])) == [False, True, True, False]
+
+
+def test_slice_checks():
+    seg = phantom()
+    kinds = {(c['kind'], c['chamber'], c['slice']) for c in metrics.slice_checks(seg, 0, 3)}
+    assert kinds == {('basal', 'LV', 0), ('basal', 'RV', 0)}     # clean phantom: reminders only
+    bad = seg.copy()
+    bad[30:60, 30:60, 7, 3] = 1          # big 'LV' below the apex at ES only
+    bad[..., 3, 0][bad[..., 3, 0] == 1] = 0  # LV missing at ED on a middle slice
+    kinds = {(c['kind'], c['phase'], c['chamber'], c['slice']) for c in metrics.slice_checks(bad, 0, 3)}
+    assert ('es_gt_ed', 'ES', 'LV', 7) in kinds and ('gap', 'ED', 'LV', 3) in kinds
+    skip = {'ED': {'LV': [4]}}  # a neighbour the user excluded is no evidence of a gap
+    kinds = {(c['kind'], c['phase'], c['chamber'], c['slice']) for c in metrics.slice_checks(bad, 0, 3, True, skip)}
+    assert ('gap', 'ED', 'LV', 3) not in kinds
+    assert metrics.slice_checks(seg[..., :1], 0, 0) == []

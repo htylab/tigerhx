@@ -136,17 +136,19 @@ def test_phase_and_basal_choices(tmp_path, model, cine):
     assert case.ed == 0 and case.ed_manual is None
 
     rv_esv = case.metrics['RV_ESV_mL']
-    pipeline.set_basal(proj, case, 'ES', 'RV', 1)
-    assert case.basal['ES']['RV'] == 1 and case.metrics['RV_ESV_mL'] < rv_esv
-    pipeline.set_basal(proj, case, 'ES', 'RV', None)
-    assert case.metrics['RV_ESV_mL'] == rv_esv
+    pipeline.set_excluded(proj, case, 'ES', 'RV', 0)
+    assert case.excluded['ES']['RV'] == [0] and case.metrics['RV_ESV_mL'] < rv_esv
+    pipeline.set_excluded(proj, case, 'ES', 'RV', 0, exclude=False)
+    assert case.excluded['ES']['RV'] == [] and case.metrics['RV_ESV_mL'] == rv_esv
     with pytest.raises(ValueError):
-        pipeline.set_basal(proj, case, 'MID', 'RV', 1)
+        pipeline.set_excluded(proj, case, 'MID', 'RV', 1)
+    assert any(c['kind'] == 'basal' for c in case.checks)
 
     proj.settings['ed_rule'] = 'first_frame'
-    pipeline.set_basal(proj, case, 'ED', 'LV', 2)
+    pipeline.set_excluded(proj, case, 'ED', 'LV', 7)
+    pipeline.set_excluded(proj, case, 'ED', 'LV', 0)
     proj.save()
     again = Project(str(tmp_path / 'ws')).cases[case.id]
-    assert again.basal == {'ED': {'LV': 2, 'RV': None}, 'ES': {'LV': None, 'RV': None}}
+    assert again.excluded == {'ED': {'LV': [0, 7], 'RV': []}, 'ES': {'LV': [], 'RV': []}}
     row = io.read_csv(proj.export_metrics())[0]
-    assert row['Basal_ED_LV'] == '2' and row['ED_source'] == 'first_frame'
+    assert row['Excluded_ED_LV'] == '0 7' and row['ED_source'] == 'first_frame'

@@ -64,7 +64,7 @@ def analyze_case(project, case, seg=None):
             es = case.es_manual
         base_first = case.base_first
         apex = case.apex_slice
-        basal = {ph: dict(v) for ph, v in case.basal.items()}
+        excluded = {ph: {ch: list(v) for ch, v in d.items()} for ph, d in case.excluded.items()}
     if base_first is None:
         base_first = aha.detect_base_first(seg, ed)
     if apex is None:
@@ -79,7 +79,8 @@ def analyze_case(project, case, seg=None):
         case.base_first, case.apex_slice = base_first, apex
         levels = aha.slice_levels(seg, ed, apex, base_first)
         case.levels = [levels[z] for z in range(seg.shape[2])]
-        case.metrics = metrics.compute_metrics(seg, zooms, ed, es, basal, base_first)
+        case.metrics = metrics.compute_metrics(seg, zooms, ed, es, excluded)
+        case.checks = metrics.slice_checks(seg, ed, es, base_first, excluded)
         case.curves = {k: [round(v, 2) for v in vals]
                        for k, vals in metrics.volume_curves(seg, zooms).items()}
     return a17
@@ -112,16 +113,21 @@ def set_phases(project, case, ed=None, es=None, reset=False):
     analyze_case(project, case)
 
 
-def set_basal(project, case, phase, chamber, first_slice):
-    """Basal-most slice counted for one phase (ED/ES) and chamber (LV/RV);
-    None counts every slice again."""
-    if phase not in case.basal or chamber not in case.basal[phase]:
+def set_excluded(project, case, phase, chamber, slice_index, exclude=True):
+    """Leave one slice out of (or back into) the volume of one chamber
+    (LV/RV) at one phase (ED/ES), e.g. a basal slice that is atrium at ES."""
+    if phase not in case.excluded or chamber not in case.excluded[phase]:
         raise ValueError('phase must be ED or ES and chamber LV or RV')
     nz = case.shape[2] if case.shape else 0
-    if first_slice is not None and not 0 <= int(first_slice) < nz:
+    if not 0 <= int(slice_index) < nz:
         raise ValueError(f'slice must be within 0..{nz - 1}')
     with project.lock:
-        case.basal[phase][chamber] = None if first_slice is None else int(first_slice)
+        current = set(case.excluded[phase][chamber])
+        if exclude:
+            current.add(int(slice_index))
+        else:
+            current.discard(int(slice_index))
+        case.excluded[phase][chamber] = sorted(current)
     analyze_case(project, case)
 
 

@@ -266,3 +266,16 @@ details summary { cursor: pointer; color: var(--ink-2); font-size: 12px; }
 table.calib td { text-align: left; }
 table.calib th { width: 2.5em; }
 table.calib td button { margin-left: 4px; }
+.sub-title { font-size: 12px; color: var(--ink-2); margin: 10px 0 4px; font-weight: 500; }
+.excl-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.chip-x { border: 0; background: none; padding: 0 2px; cursor: pointer; color: var(--muted); }
+button.on { border-color: var(--warning); }
+ul.checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+ul.checks li { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.45; }
+ul.checks li span:nth-child(2) { flex: 1; }
+ul.checks .ico { width: 1em; flex: none; }
+ul.checks li.warn .ico { color: var(--critical-ink); }
+ul.checks li.done { color: var(--muted); }
+ul.checks li.done .ico { color: var(--good-ink); }
+ul.checks li.note .ico { color: var(--ink-2); }
+.warn-mark { color: var(--critical-ink); font-size: 11px; }

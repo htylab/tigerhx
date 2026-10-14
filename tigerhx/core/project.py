@@ -29,8 +29,8 @@ DEFAULT_SETTINGS = {
 PHASES, CHAMBERS = ('ED', 'ES'), ('LV', 'RV')
 
 
-def empty_basal():
-    return {ph: {ch: None for ch in CHAMBERS} for ph in PHASES}
+def empty_excluded():
+    return {ph: {ch: [] for ch in CHAMBERS} for ph in PHASES}
 
 
 @dataclass
@@ -51,7 +51,8 @@ class Case:
     apex_confirmed: bool = False
     ed_manual: int = None      # user-set ED/ES frames override the automatic ones
     es_manual: int = None
-    basal: dict = field(default_factory=empty_basal)  # basal-most counted slice
+    excluded: dict = field(default_factory=empty_excluded)  # slices not counted
+    checks: list = None        # slices flagged for review (metrics.slice_checks)
     levels: list = None
     metrics: dict = None
     curves: dict = None
@@ -61,10 +62,11 @@ class Case:
     def from_dict(cls, d):
         names = {f.name for f in fields(cls)}
         c = cls(**{k: v for k, v in d.items() if k in names})
-        basal = empty_basal()
+        excluded = empty_excluded()
         for ph in PHASES:
-            basal[ph].update((c.basal or {}).get(ph) or {})
-        c.basal = basal
+            for ch in CHAMBERS:
+                excluded[ph][ch] = sorted(set(((c.excluded or {}).get(ph) or {}).get(ch) or []))
+        c.excluded = excluded
         return c
 
     @property
@@ -169,7 +171,7 @@ class Project:
         path = path or join(self.workspace, 'tigerhx_metrics.csv')
         header = ['Case', 'Filename', 'Status', 'Model', 'ED_frame_0base', 'ED_source',
                   'ES_frame_0base', 'ES_source', 'Apex_slice_0base', 'Apex_confirmed',
-                  'Slice_order'] + [f'Basal_{ph}_{ch}' for ph in PHASES for ch in CHAMBERS] \
+                  'Slice_order'] + [f'Excluded_{ph}_{ch}' for ph in PHASES for ch in CHAMBERS] \
             + METRIC_KEYS
         rows = []
         with self.lock:
@@ -178,12 +180,12 @@ class Project:
                 if not c.metrics:
                     continue
                 order = '' if c.base_first is None else ('base->apex' if c.base_first else 'apex->base')
-                basal = [c.basal[ph][ch] for ph in PHASES for ch in CHAMBERS]
+                excluded = [' '.join(map(str, c.excluded[ph][ch])) for ph in PHASES for ch in CHAMBERS]
                 rows.append([c.name, c.path, c.status, c.model,
                              c.ed, 'manual' if c.ed_manual is not None else rule,
                              c.es, 'manual' if c.es_manual is not None else 'min_volume',
                              c.apex_slice, int(bool(c.apex_confirmed)), order]
-                            + ['' if b is None else b for b in basal]
+                            + excluded
                             + ['' if c.metrics.get(k) is None else c.metrics[k] for k in METRIC_KEYS])
         write_csv(path, header, rows)
         return path

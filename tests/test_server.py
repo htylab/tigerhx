@@ -103,11 +103,12 @@ def test_full_flow(server, tmp_path):
     assert set(np.unique(np.asarray(aha.dataobj)[:, :, 4])) - {0} <= set(range(13, 17))
 
     call(f"/api/cases/{case['id']}/phases", {'es': 2})
-    call(f"/api/cases/{case['id']}/basal", {'phase': 'ES', 'chamber': 'RV', 'slice': 1})
+    call(f"/api/cases/{case['id']}/exclude", {'phase': 'ES', 'chamber': 'RV', 'slice': 1})
     case = call('/api/state')['cases'][0]
-    assert case['es'] == 2 and case['es_manual'] == 2 and case['basal']['ES']['RV'] == 1
+    assert case['es'] == 2 and case['es_manual'] == 2 and case['excluded']['ES']['RV'] == [1]
+    assert case['checks'] and all('kind' in c for c in case['checks'])
     with pytest.raises(urllib.error.HTTPError) as e:
-        call(f"/api/cases/{case['id']}/basal", {'phase': 'ES', 'chamber': 'XX', 'slice': 1})
+        call(f"/api/cases/{case['id']}/exclude", {'phase': 'ES', 'chamber': 'XX', 'slice': 1})
     assert e.value.code == 400
     call(f"/api/cases/{case['id']}/phases", {'reset': True})
     call('/api/settings', {'ed_rule': 'first_frame'})

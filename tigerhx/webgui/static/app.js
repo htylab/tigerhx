@@ -30,13 +30,19 @@ const I18N = {
     singleFrame: '單一時相：無 EF。', notSegmented: '尚未分割。', error: '錯誤',
     lblLV: 'LV 血池', lblMYO: '心肌', lblRV: 'RV 血池', basal: 'Basal', mid: 'Mid', apical: 'Apical', apex: 'Apex',
     modelMissing: '（首次使用時下載）',
-    calib: 'ED / ES 與基底校正', auto: '自動', manual: '手動', resetPhases: '恢復自動 ED/ES',
+    calib: 'ED / ES 與 slice 校正', auto: '自動', manual: '手動', resetPhases: '恢復自動 ED/ES',
     useFrame: f => `用目前 frame（${f}）`, setSlice: k => `設為目前 slice（${k}）`, clear: '清除', all: '全部',
     setTo: v => `設為 ${v}`,
-    basalTitle: '基底起點：更靠 base 的 slice 不計入該時相的容積',
+    exclTitle: '不計入容積的 slice', checksTitle: '建議檢查',
+    dontCount: ch => `此 slice 不計入 ${ch}`, countAgain: ch => `恢復計入 ${ch}`,
+    atSlice: (ph, f, k) => `目前 ${ph}（frame ${f}）· slice ${k}`,
+    goPhase: '切到 ED 或 ES 才能排除 slice：', show: '查看',
+    chkBigger: (z, ch, es, ed) => `slice ${z}：ES 的 ${ch} 比 ED 大（${es} vs ${ed} voxels），可能標到心室外的結構`,
+    chkGap: (z, ph, ch, a, n) => `slice ${z}：${ph} 的 ${ch} 疑似漏標（${a} voxels，鄰近 ${n}）`,
+    chkBasal: (z, ch) => `確認 ES 最基底的 ${ch}（slice ${z}）是否已進入心房；是的話不計入`,
     edRule: 'ED 自動判定', edRuleMax: '最大 LV 容積', edRuleFirst: '第一個 frame（R 波觸發）',
     rule_max_volume: '最大容積', rule_first_frame: '第一個 frame', rule_min: '最小容積',
-    excluded: (ph, ch) => `${ph} 不計入 ${ch}`, curveNote: '曲線包含所有 slice，未套用基底排除。',
+    excluded: (ph, ch) => `${ph} 不計入 ${ch}`, curveNote: '曲線包含所有 slice，未套用排除設定。',
     now: (f, k) => `目前：frame ${f} · slice ${k}`,
   },
   en: {
@@ -67,13 +73,19 @@ const I18N = {
     singleFrame: 'Single frame: no EF.', notSegmented: 'Not segmented yet.', error: 'Error',
     lblLV: 'LV blood', lblMYO: 'Myocardium', lblRV: 'RV blood', basal: 'Basal', mid: 'Mid', apical: 'Apical', apex: 'Apex',
     modelMissing: ' (downloaded on first use)',
-    calib: 'ED / ES and basal slices', auto: 'auto', manual: 'manual', resetPhases: 'Automatic ED/ES',
+    calib: 'ED / ES and slices', auto: 'auto', manual: 'manual', resetPhases: 'Automatic ED/ES',
     useFrame: f => `Use current frame (${f})`, setSlice: k => `Set to current slice (${k})`, clear: 'Clear', all: 'all',
     setTo: v => `Set ${v}`,
-    basalTitle: 'First basal slice: slices further towards the base are not counted in that phase',
+    exclTitle: 'Slices not counted', checksTitle: 'Worth checking',
+    dontCount: ch => `Don't count this slice for ${ch}`, countAgain: ch => `Count for ${ch} again`,
+    atSlice: (ph, f, k) => `Now ${ph} (frame ${f}) · slice ${k}`,
+    goPhase: 'Go to ED or ES to exclude a slice:', show: 'Show',
+    chkBigger: (z, ch, es, ed) => `slice ${z}: ${ch} larger at ES than at ED (${es} vs ${ed} voxels), possibly a structure outside the ventricle`,
+    chkGap: (z, ph, ch, a, n) => `slice ${z}: ${ch} possibly missed at ${ph} (${a} voxels, neighbours ${n})`,
+    chkBasal: (z, ch) => `Check whether the basal-most ${ch} slice at ES (slice ${z}) is already atrium; if so, don't count it`,
     edRule: 'Automatic ED', edRuleMax: 'largest LV volume', edRuleFirst: 'first frame (R-wave triggered)',
     rule_max_volume: 'max volume', rule_first_frame: 'first frame', rule_min: 'min volume',
-    excluded: (ph, ch) => `${ch} not counted at ${ph}`, curveNote: 'Curves include all slices; basal exclusion is not applied.',
+    excluded: (ph, ch) => `${ch} not counted at ${ph}`, curveNote: 'Curves include all slices; exclusions are not applied.',
     now: (f, k) => `Now: frame ${f} · slice ${k}`,
   },
 };
@@ -216,11 +228,13 @@ function renderCases(st) {
   const rows = st.cases.map(c => {
     const apex = c.apex_slice === null ? '–' : (c.apex_confirmed ? `${c.apex_slice}` : `${c.apex_slice}?`);
     const ef = c.metrics ? fmt(c.metrics.LV_EF_pct) : '–';
+    const nWarn = c.metrics ? openChecks(c).length : 0;
+    const warn = nWarn ? ` <span class="warn-mark" title="${esc(t('checksTitle'))}: ${nWarn}">⚠${nWarn}</span>` : '';
     const msg = c.message && c.status === 'error' ? `<div class="case-msg">${esc(c.message)}</div>` : '';
     return `<tr class="row${c.id === S.selected ? ' selected' : ''}" data-id="${c.id}" title="${esc(c.path)}">
       <td><input type="checkbox" data-check="${c.id}"${S.checked.has(c.id) ? ' checked' : ''}></td>
       <td class="name">${esc(c.name)}${msg}</td><td>${chip(c)}</td>
-      <td class="num">${esc(apex)}</td><td class="num">${esc(ef)}</td></tr>`;
+      <td class="num">${esc(apex)}</td><td class="num">${esc(ef)}${warn}</td></tr>`;
   }).join('');
   if (body.dataset.html !== rows) { body.innerHTML = rows; body.dataset.html = rows; }
   $('checkAll').checked = st.cases.length > 0 && st.cases.every(c => S.checked.has(c.id));
@@ -289,7 +303,7 @@ function renderViewerBars(c) {
 // ---------------------------------------------------------------- results
 function renderResults(c) {
   const box = $('results');
-  const key = c ? JSON.stringify([c.id, c.status, c.metrics, c.ed, c.es, c.basal, lang, c.message]) : 'none';
+  const key = c ? JSON.stringify([c.id, c.status, c.metrics, c.ed, c.es, c.excluded, lang, c.message]) : 'none';
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   if (!c) { box.innerHTML = `<div class="empty">${esc(t('noResults'))}</div>`; return; }
@@ -325,37 +339,64 @@ function renderResults(c) {
         <span class="key"><i style="background:var(--series-lv)"></i>LV</span>
         <span class="key"><i style="background:var(--series-rv)"></i>RV</span></div>
       <div class="chart" id="chart"></div>
-      ${hasBasal(c) ? `<div class="info">${esc(t('curveNote'))}</div>` : ''}
+      ${hasExclusions(c) ? `<div class="info">${esc(t('curveNote'))}</div>` : ''}
       <details><summary>${esc(t('table'))}</summary><div id="curveTable"></div></details>
     </div>` : ''}`;
   if (multi) { drawChart(c); renderCalib(c, true); }
 }
 
-const hasBasal = c => ['ED', 'ES'].some(ph => ['LV', 'RV'].some(ch => c.basal[ph][ch] !== null));
+const hasExclusions = c => ['ED', 'ES'].some(ph => ['LV', 'RV'].some(ch => c.excluded[ph][ch].length));
+const isExcluded = (c, phase, chamber, k) => !!(c.excluded && c.excluded[phase][chamber].includes(k));
+const phaseOfFrame = c => (S.frame === c.ed ? 'ED' : S.frame === c.es ? 'ES' : null);
+const openChecks = c => (c.checks || []).filter(k => k.kind !== 'basal' && !isExcluded(c, k.phase, k.chamber, k.slice));
 
-function isExcluded(c, phase, chamber, k) {
-  const cut = c.basal && c.basal[phase] ? c.basal[phase][chamber] : null;
-  if (cut === null || cut === undefined) return false;
-  return c.base_first === false ? k > cut : k < cut;
+function checkText(k) {
+  if (k.kind === 'es_gt_ed') return t('chkBigger', k.slice, k.chamber, k.es, k.ed);
+  if (k.kind === 'gap') return t('chkGap', k.slice, k.phase, k.chamber, k.area, k.neighbours);
+  return t('chkBasal', k.slice, k.chamber);
 }
 
 function renderCalib(c, force = false) {
   const box = $('calib');
   if (!box || !isSegmented(c) || c.shape[3] < 2) return;
-  const key = JSON.stringify([c.id, c.ed, c.es, c.ed_manual, c.es_manual, c.basal, S.frame, S.slice, lang,
-    S.state.settings.ed_rule]);
+  const key = JSON.stringify([c.id, c.ed, c.es, c.ed_manual, c.es_manual, c.excluded, c.checks, S.frame, S.slice,
+    lang, S.state.settings.ed_rule]);
   if (!force && box.dataset.key === key) return;
   box.dataset.key = key;
   const rule = S.state.settings.ed_rule || 'max_volume';
   const src = (manual, autoRule) => `<span class="tag${manual === null ? '' : ' ok'}">${esc(manual === null
     ? `${t('auto')} · ${t('rule_' + autoRule)}` : t('manual'))}</span>`;
-  const k = S.slice === null ? '–' : S.slice;
-  const cell = (ph, ch) => {
-    const v = c.basal[ph][ch];
-    return `<td>${v === null ? `<span class="muted">${esc(t('all'))}</span>` : `<b>${v}</b>`}
-      <button class="small" data-basal="${ph},${ch}" title="${esc(t('setSlice', k))}"${S.slice === null ? ' disabled' : ''}>${esc(t('setTo', k))}</button>
-      ${v === null ? '' : `<button class="small" data-basal-clear="${ph},${ch}" title="${esc(t('clear'))}">×</button>`}</td>`;
-  };
+  const phase = phaseOfFrame(c);
+  const k = S.slice;
+
+  let toggles;
+  if (phase && k !== null) {
+    toggles = ['LV', 'RV'].map(ch => {
+      const on = isExcluded(c, phase, ch, k);
+      return `<button class="small${on ? ' on' : ''}" data-exclude="${phase},${ch},${k},${on ? 0 : 1}">
+        ${esc(on ? t('countAgain', ch) : t('dontCount', ch))}</button>`;
+    }).join(' ');
+    toggles = `<div class="info">${esc(t('atSlice', phase, S.frame, k))}</div><div>${toggles}</div>`;
+  } else {
+    toggles = `<div class="info">${esc(t('goPhase'))}
+      <button class="small" data-goto="${c.ed},${k ?? ''}">ED</button>
+      <button class="small" data-goto="${c.es},${k ?? ''}">ES</button></div>`;
+  }
+
+  const lists = ['ED', 'ES'].map(ph => ['LV', 'RV'].map(ch => c.excluded[ph][ch].map(z =>
+    `<span class="tag ok">${ph} ${ch} · slice ${z}
+      <button class="chip-x" data-exclude="${ph},${ch},${z},0" title="${esc(t('countAgain', ch))}">×</button></span>`
+  ).join(' ')).join(' ')).join(' ').trim();
+
+  const checks = (c.checks || []).map(chk => {
+    const done = chk.kind !== 'basal' && isExcluded(c, chk.phase, chk.chamber, chk.slice);
+    const icon = chk.kind === 'basal' ? 'ⓘ' : done ? '✓' : '⚠';
+    const f = chk.phase === 'ED' ? c.ed : c.es;
+    return `<li class="${chk.kind === 'basal' ? 'note' : done ? 'done' : 'warn'}"><span class="ico">${icon}</span>
+      <span>${esc(checkText(chk))}</span>
+      <button class="small" data-goto="${f},${chk.slice}">${esc(t('show'))}</button></li>`;
+  }).join('');
+
   box.innerHTML = `
     <div class="chart-title">${esc(t('calib'))}</div>
     <table class="metrics calib">
@@ -366,13 +407,16 @@ function renderCalib(c, force = false) {
     </table>
     ${c.ed_manual !== null || c.es_manual !== null
       ? `<button class="small" data-phase="reset">${esc(t('resetPhases'))}</button>` : ''}
-    <div class="info" style="margin-top:8px">${esc(t('basalTitle'))}</div>
-    <table class="metrics calib">
-      <thead><tr><th></th><th>LV</th><th>RV</th></tr></thead>
-      <tbody><tr><th>ED</th>${cell('ED', 'LV')}${cell('ED', 'RV')}</tr>
-        <tr><th>ES</th>${cell('ES', 'LV')}${cell('ES', 'RV')}</tr></tbody>
-    </table>
-    <div class="info">${esc(t('now', S.frame, k))}</div>`;
+    <div class="sub-title">${esc(t('exclTitle'))}</div>
+    ${toggles}
+    ${lists ? `<div class="excl-list">${lists}</div>` : ''}
+    ${checks ? `<div class="sub-title">${esc(t('checksTitle'))}</div><ul class="checks">${checks}</ul>` : ''}`;
+}
+
+async function gotoFrameSlice(f, k) {
+  if (S.view === 'mosaic') { S.view = 'single'; applyView(); }
+  setFrame(f);
+  if (k !== '' && k !== undefined && k !== null) goToSlice(+k);
 }
 
 function niceMax(v) {
@@ -760,9 +804,12 @@ function bind() {
     if (b.dataset.phase) {
       const body = b.dataset.phase === 'reset' ? { reset: true } : { [b.dataset.phase]: S.frame };
       await api(`/api/cases/${c.id}/phases`, body);
-    } else if (b.dataset.basal || b.dataset.basalClear) {
-      const [phase, chamber] = (b.dataset.basal || b.dataset.basalClear).split(',');
-      await api(`/api/cases/${c.id}/basal`, { phase, chamber, slice: b.dataset.basal ? S.slice : null });
+    } else if (b.dataset.exclude) {
+      const [phase, chamber, z, on] = b.dataset.exclude.split(',');
+      await api(`/api/cases/${c.id}/exclude`, { phase, chamber, slice: +z, exclude: on === '1' });
+    } else if (b.dataset.goto) {
+      const [f, k] = b.dataset.goto.split(',');
+      return gotoFrameSlice(+f, k);
     } else {
       return;
     }

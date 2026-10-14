@@ -191,8 +191,9 @@ class App:
     def set_phases(self, cid, ed=None, es=None, reset=False):
         self._analyze(cid, lambda c: pipeline.set_phases(self.project, c, ed, es, reset))
 
-    def set_basal(self, cid, phase, chamber, first_slice):
-        self._analyze(cid, lambda c: pipeline.set_basal(self.project, c, phase, chamber, first_slice))
+    def set_excluded(self, cid, phase, chamber, slice_index, exclude):
+        self._analyze(cid, lambda c: pipeline.set_excluded(self.project, c, phase, chamber,
+                                                           slice_index, exclude))
 
     def _write_outputs(self, case):
         try:
@@ -374,8 +375,9 @@ def make_handler(app):
                         app.set_apex(cid, body['apex_slice'], body.get('base_first'))
                     elif action == 'phases':
                         app.set_phases(cid, body.get('ed'), body.get('es'), bool(body.get('reset')))
-                    elif action == 'basal':
-                        app.set_basal(cid, body['phase'], body['chamber'], body.get('slice'))
+                    elif action == 'exclude':
+                        app.set_excluded(cid, body['phase'], body['chamber'], body['slice'],
+                                         bool(body.get('exclude', True)))
                     else:
                         return self._json({'error': 'not found'}, 404)
                     return self._json({'ok': True})
