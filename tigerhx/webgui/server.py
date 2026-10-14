@@ -70,7 +70,7 @@ class App:
         if rule is not None and rule not in metrics.ED_RULES:
             raise ValueError(f'ed_rule must be one of {metrics.ED_RULES}')
         with p.lock:
-            for k in ('model', 'gpu', 'save_mat', 'mat_in_inputdir', 'nii_in_inputdir'):
+            for k in ('model', 'save_mat', 'mat_in_inputdir', 'nii_in_inputdir'):
                 if k in values:
                     p.settings[k] = values[k] if k == 'model' else bool(values[k])
             changed = rule is not None and rule != p.settings.get('ed_rule')
@@ -95,7 +95,7 @@ class App:
     def run(self, ids):
         p = self.project
         with p.lock:
-            model, gpu = p.settings.get('model') or models.GUI_MODELS[-1], p.settings.get('gpu')
+            model = p.settings.get('model') or models.GUI_MODELS[-1]
             targets = ids or [c.id for c in p.cases.values() if c.status in ('pending', 'error')]
             queued = []
             for cid in targets:
@@ -107,7 +107,7 @@ class App:
             p.save()
         self.cancel.clear()
         for cid in queued:
-            self.jobs.put((cid, model, gpu))
+            self.jobs.put((cid, model))
         return len(queued)
 
     def stop(self):
@@ -115,7 +115,7 @@ class App:
         p = self.project
         while True:
             try:
-                cid, _, _ = self.jobs.get_nowait()
+                cid, _ = self.jobs.get_nowait()
             except queue.Empty:
                 break
             with p.lock:
@@ -130,7 +130,7 @@ class App:
     def _worker(self):
         p = self.project
         while True:
-            cid, model, gpu = self.jobs.get()
+            cid, model = self.jobs.get()
             case = p.cases.get(cid)
             if case is None or case.status != 'queued':
                 continue
@@ -148,7 +148,7 @@ class App:
 
                 def progress(done, total):
                     case.progress = done / total
-                pipeline.segment_case(p, case, model_path, gpu=gpu, progress=progress,
+                pipeline.segment_case(p, case, model_path, progress=progress,
                                       cancel=self.cancel)
                 with p.lock:
                     case.status = 'done' if case.apex_confirmed else 'review'

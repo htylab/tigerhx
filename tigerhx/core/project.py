@@ -19,7 +19,6 @@ STATUSES = ('pending', 'queued', 'running', 'review', 'done', 'error')
 
 DEFAULT_SETTINGS = {
     'model': '',
-    'gpu': False,
     'save_mat': True,          # legacy .mat in the workspace
     'mat_in_inputdir': False,  # legacy .mat next to the input file
     'nii_in_inputdir': False,  # label NIfTI next to the input file

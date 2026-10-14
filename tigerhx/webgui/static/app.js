@@ -202,7 +202,6 @@ function renderTop(st) {
     });
   }
   if (document.activeElement !== sel) sel.value = st.settings.model;
-  $('gpu').checked = !!st.settings.gpu;
   document.querySelectorAll('[data-setting]').forEach(el => { el.checked = !!st.settings[el.dataset.setting]; });
   if (document.activeElement !== $('edRule')) $('edRule').value = st.settings.ed_rule || 'max_volume';
   $('workspace').textContent = st.workspace;
@@ -726,7 +725,6 @@ function bind() {
     el.onchange = guard(async () => { await api('/api/settings', { [el.dataset.setting]: el.checked }); await refresh(); });
   });
   $('model').onchange = guard(async () => { await api('/api/settings', { model: $('model').value }); await refresh(); });
-  $('gpu').onchange = guard(async () => { await api('/api/settings', { gpu: $('gpu').checked }); await refresh(); });
   $('btnRun').onclick = guard(async () => {
     const ids = [...S.checked].filter(id => S.state.cases.some(c => c.id === id));
     const r = await api('/api/run', { ids });
