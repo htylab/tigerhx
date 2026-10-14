@@ -1,6 +1,6 @@
 ## Background
 ### TigerHx: Tissue Mask Generation for Heart
-* This repo provides deep learning methods with pretrained models for brain extraction.
+* This repo provides deep learning methods with pretrained models for cardiac cine MRI segmentation.
 * We also provided the stand-alone application working on Windows, Mac, and Linux.
 * The software has been exclusively designed for research purposes and is not intended for any commercial application.
 * The software should not be used in clinical applications.
@@ -21,7 +21,61 @@
 
 ### As a command line tool:
 
-    tigerhx -r c:\data\*.nii.gz -o c:\output
+    tigerhx c:\data\*.nii.gz -o c:\output
+    tigerhx c:\data -o c:\output -g --model cine4d_v0006_xy_cine.onnx
+
+## GUI
+
+    pip install "tigerhx[gui] @ https://github.com/htylab/tigerhx/archive/main.zip"
+    tigerhx-gui                      # or: python -m tigerhx.webgui.app
+
+The GUI runs a local server (127.0.0.1 only) and shows the page in a native
+window when `pywebview` is installed, otherwise in the default browser
+(`--browser` forces the browser). Results and the case list are kept in a
+workspace folder, `~/TigerHx` by default (`-w <folder>` to change).
+
+Workflow:
+
+1. **＋ Files / ＋ Folder** – add cine NIfTI files; folders are searched
+   recursively with optional include / exclude keywords. No CSV is needed.
+2. **▶ Segment** – runs the selected model on all pending (or the checked)
+   cases. Models are downloaded on first use.
+3. **Review** – the viewer (NiiVue) shows the image with the segmentation or
+   AHA 17-segment overlay, single slice or all slices, frame slider, ED/ES
+   jump and the LV/RV volume–time curve.
+   The first apical slice and the slice order (base→apex or apex→base) are
+   suggested automatically; check them on the images and use
+   *Use current slice as apex* or *Confirm suggestion*. The AHA labels and
+   metrics are recomputed instantly.
+4. **Export metrics CSV** – LV/RV EDV, ESV, SV, EF and LV mass for all cases.
+
+Files written per case in `<workspace>/cases/<name>/`: `seg.nii.gz`
+(labels 1–3), `aha17.nii.gz` (AHA segments 1–17 on the myocardium) and,
+unless switched off under *Outputs*, the `.mat` file of the previous GUI
+(`*_pred_<version>.mat`, same fields plus `AHA17`).
+
+Notes on the analysis:
+
+* ED/ES are the frames with the largest/smallest LV blood volume; RV values
+  use the RV curve's own maximum/minimum. LV mass = myocardium volume at ED ×
+  1.05 g/mL. Volumes use the voxel size from the NIfTI header (slice spacing
+  included).
+* AHA sectors use the direction from the LV to the RV blood-pool centroid as
+  reference (septum between sectors 2 and 3), as in the previous GUI; the
+  segment names assume the standard short-axis orientation. Slices from the
+  base to the apical start are split evenly into basal and mid; slices with
+  myocardium but no cavity beyond it are segment 17.
+
+The previous Tk GUI (`tigercinegui.py`) is still available.
+
+## Development
+
+    pip install -e . onnxruntime onnx pytest
+    pytest tests
+
+`tigerhx/core` holds the UI-independent code shared by the CLI and both GUIs
+(inference, AHA, metrics, file I/O, workspace). The tests use a synthetic
+phantom and a tiny ONNX model, so they need no network or real data.
 
 
 # Label names:

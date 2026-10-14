@@ -42,6 +42,7 @@ class Case:
     base_first: bool = None
     apex_slice: int = None
     apex_confirmed: bool = False
+    levels: list = None
     metrics: dict = None
     curves: dict = None
     outputs: dict = field(default_factory=dict)

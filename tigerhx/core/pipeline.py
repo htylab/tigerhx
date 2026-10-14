@@ -71,6 +71,8 @@ def analyze_case(project, case, seg=None):
     with project.lock:
         case.ed, case.es = ed, es
         case.base_first, case.apex_slice = base_first, apex
+        levels = aha.slice_levels(seg, ed, apex, base_first)
+        case.levels = [levels[z] for z in range(seg.shape[2])]
         case.metrics = metrics.compute_metrics(seg, zooms, ed, es)
         case.curves = {k: [round(v, 2) for v in vals]
                        for k, vals in metrics.volume_curves(seg, zooms).items()}

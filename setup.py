@@ -22,9 +22,11 @@ setup(
      classifiers=classifiers,
      keywords='MRI segmentation',
      packages=find_packages(),
+     package_data={'tigerhx.webgui': ['static/*.*', 'static/vendor/*']},
      entry_points={
         'console_scripts': [
             'tigerhx = tigerhx.hx:main',
+            'tigerhx-gui = tigerhx.webgui.app:main',
         ]
     },
      python_requires='>=3.8',
@@ -32,5 +34,8 @@ setup(
              'numpy>=1.16.0,<2.0',
              'nibabel>=3.1.0',
              'scipy>=1.6.0'
-         ]
+         ],
+     extras_require={
+             'gui': ['pywebview'],  # native window; without it the GUI opens in a browser
+         }
 )
