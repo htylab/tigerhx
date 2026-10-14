@@ -743,7 +743,8 @@ async function addPaths(paths, include = '', exclude = '') {
   say(t('added', r.added));
   await refresh();
 }
-const hasNative = () => window.pywebview && window.pywebview.api;
+// native file dialogs: the Rust app's bridge or the pywebview API
+const native = () => window.tigerhxNative || (window.pywebview && window.pywebview.api);
 
 function showAddPanel(paths = []) {
   $('addPaths').value = paths.join('\n');
@@ -753,13 +754,13 @@ function showAddPanel(paths = []) {
 
 function bind() {
   $('btnAddFiles').onclick = guard(async () => {
-    if (!hasNative()) return showAddPanel();
-    const files = await window.pywebview.api.pick_files();
+    if (!native()) return showAddPanel();
+    const files = await native().pick_files();
     if (files && files.length) await addPaths(files);
   });
   $('btnAddFolder').onclick = guard(async () => {
-    if (!hasNative()) return showAddPanel();
-    const dirs = await window.pywebview.api.pick_folder();
+    if (!native()) return showAddPanel();
+    const dirs = await native().pick_folder();
     if (dirs && dirs.length) showAddPanel(dirs);
   });
   $('btnAddConfirm').onclick = guard(async () => {

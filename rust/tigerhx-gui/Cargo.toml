@@ -1,0 +1,33 @@
+[package]
+name = "tigerhx-gui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TigerHx cine MRI segmentation GUI: local server for the web page, shown in a native window"
+
+[[bin]]
+name = "tigerhxgui"
+path = "src/main.rs"
+
+[features]
+default = ["webview"]
+# native window (WebView2 on Windows, WebKitGTK on Linux) and file dialogs;
+# without it the page opens in the default browser
+webview = ["dep:wry", "dep:tao", "dep:rfd"]
+
+[dependencies]
+tigerhx-core = { path = "../tigerhx-core" }
+tiny_http = "0.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+getrandom = "0.3"
+wry = { version = "0.57", optional = true }
+tao = { version = "0.37", optional = true }
+# GTK dialogs on Linux (GTK is already needed by the window); no portal required
+rfd = { version = "0.17", optional = true, default-features = false, features = ["gtk3"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Console"] }
+
+[build-dependencies]
+winresource = "0.1"
