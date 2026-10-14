@@ -239,3 +239,13 @@ ul.checks .ico { width: 1em; flex: none; }
 ul.checks li.warn .ico { color: var(--critical-ink); }
 .warn-mark { color: var(--critical-ink); font-size: 11px; white-space: nowrap; }
 .ok-mark { color: var(--good-ink); font-size: 11px; }
+
+/* log panel: the original GUI's message box */
+.log-panel { border-top: 1px solid var(--border); background: var(--surface); }
+.log-panel #logBody { height: 160px; overflow: auto; padding: 6px 14px; font-size: 12px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-all; color: var(--ink-2); }
+.log-panel .log-warn { color: var(--ink); }
+.log-panel .log-error { color: var(--critical-ink); }
+#btnLog.alert { border-color: var(--critical); color: var(--critical-ink); }
+.field-inline { display: inline-flex; align-items: center; gap: 6px; }
+.field-inline input { width: 22em; }

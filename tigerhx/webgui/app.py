@@ -32,7 +32,9 @@ class NativeDialogs:
 
     def pick_files(self):
         return self._dialog('OPEN', allow_multiple=True,
-                            file_types=('NIfTI (*.nii;*.nii.gz)', 'All files (*.*)'))
+                            file_types=('NIfTI, case list or result (*.nii;*.nii.gz;*.csv;*.mat)',
+                                        'NIfTI (*.nii;*.nii.gz)', 'Case list (*.csv)',
+                                        'TigerHx result (*.mat)', 'All files (*.*)'))
 
     def pick_folder(self):
         return self._dialog('FOLDER')

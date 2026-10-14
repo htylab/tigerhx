@@ -66,7 +66,7 @@ def test_project_pipeline(tmp_path, model, cine):
     path, seg = cine
     proj = Project(str(tmp_path / 'ws'))
     proj.settings.update(save_mat=True, nii_in_inputdir=True)
-    added = proj.add_paths([str(tmp_path / 'data')], exclude='mask')
+    added = proj.add_paths([str(tmp_path / 'data')], exclude='mask')['added']
     assert [c.name for c in added] == ['sub.01/sub.01.cine']
     case = added[0]
 
@@ -147,3 +147,83 @@ def test_concurrent_saves(tmp_path):
     [t.join() for t in threads]
     assert errors == []
     assert sorted(os.listdir(tmp_path / 'ws')) == ['cases', 'project.json']  # no temp files left
+
+
+def _cine(path, seg=None, zooms=(1.5, 1.5, 8.0)):
+    seg = phantom() if seg is None else seg
+    nib.save(nib.Nifti1Image(phantom_image(seg).astype(np.int16), np.diag(list(zooms) + [1])), str(path))
+    return seg
+
+
+def test_csv_import_keeps_apex_and_row_options(tmp_path, model):
+    data = tmp_path / 'data'
+    (data / 'a').mkdir(parents=True)
+    (data / 'b').mkdir()
+    _cine(data / 'a' / 'cine.nii.gz')
+    _cine(data / 'b' / 'cine.nii.gz')
+    csv_path = tmp_path / 'list.csv'
+    io.write_csv(str(csv_path), io.CASE_COLUMNS, [
+        ['data/a/cine.nii.gz', 4, 0, 1],                 # relative to the CSV, apex confirmed
+        [str(data / 'b' / 'cine.nii.gz'), '', '', ''],   # apex left blank: suggested later
+        [str(data / 'gone.nii.gz'), 3, 0, 0]])
+    proj = Project(str(tmp_path / 'ws'))
+    proj.settings.update(save_mat=True, nii_in_inputdir=False)
+    r = proj.add_paths([str(csv_path)])
+    assert [c.name for c in r['added']] == ['a/cine', 'b/cine']
+    assert r['missing'] == [str(data / 'gone.nii.gz')]
+    a, b = r['added']
+    assert (a.apex_slice, a.apex_confirmed, a.nii_in_inputdir) == (4, True, True)
+    assert (b.apex_slice, b.apex_confirmed, b.nii_in_inputdir) == (None, False, None)
+
+    for c in (a, b):
+        pipeline.segment_case(proj, c, model)
+    assert (a.apex_slice, a.apex_confirmed) == (4, True) and a.levels[4] == 'apical'
+    assert (b.apex_slice, b.apex_confirmed) == (5, False)
+    # one output folder named as the original GUI did; the row option wins
+    assert sorted(os.listdir(proj.output_dir())) == ['a_cine_pred_v9999.mat', 'b_cine_pred_v9999.mat']
+    assert os.path.isfile(data / 'a' / 'cine_v9999_seg.nii.gz')
+    assert not os.path.exists(data / 'b' / 'cine_v9999_seg.nii.gz')
+    sectors = np.asarray(nib.load(os.path.join(proj.case_dir(a), 'sectors.nii.gz')).dataobj)
+    assert sectors[..., 4, :].max() == 4 and sectors[..., 3, :].max() == 6
+
+    again = proj.add_paths([str(csv_path)])            # importing again updates the apex
+    assert again['added'] == [] and len(again['updated']) == 2
+
+
+def test_gen_csv(tmp_path):
+    data = tmp_path / 'data'
+    data.mkdir()
+    for n in ('x_cine.nii.gz', 'x_mask.nii.gz', 'y_cine.nii'):
+        (data / n).write_bytes(b'')
+    proj = Project(str(tmp_path / 'ws'))
+    proj.settings.update(nii_in_inputdir=True)
+    path, n = proj.gen_csv([str(data)], exclude='mask')
+    rows = io.read_csv(path)
+    assert n == 2 and os.path.dirname(path) == proj.csv_dir()
+    assert [os.path.basename(r['Filename']) for r in rows] == ['x_cine.nii.gz', 'y_cine.nii']
+    assert rows[0]['Apex'] == '' and rows[0]['nii_in_inputdir'] == '1' and rows[0]['mat_in_inputdir'] == '0'
+
+
+def test_open_original_gui_result(tmp_path, model):
+    seg = phantom()
+    img = phantom_image(seg).astype(np.float64)
+    result = io.legacy_result(img, seg, 5, True, 'cine4d_v9999_xy_tiny.onnx', (1.5, 1.5, 8.0, 1.0))
+    out = tmp_path / 'output'
+    out.mkdir()
+    io.save_mat(str(out / 'sub1_pred_v9999.mat'), result)
+    io.save_mat(str(out / 'notes.mat'), {'x': 1})          # not a *pred*.mat: not listed
+    proj = Project(str(tmp_path / 'ws'))
+    proj.settings.update(save_mat=True, mat_in_inputdir=True, nii_in_inputdir=True)
+    added = proj.add_paths([str(out)], results=True)['added']
+    assert [(c.name, c.kind) for c in added] == [('sub1_pred_v9999', 'mat')]
+    case = added[0]
+    pipeline.import_mat_case(proj, case)
+    assert (case.apex_slice, case.apex_confirmed, case.base_first) == (5, True, True)
+    assert case.model == 'cine4d_v9999_xy_tiny.onnx' and case.zooms[:3] == [1.5, 1.5, 8.0]
+    assert (pipeline.load_seg(proj, case) == seg).all()
+    data, _, _, zooms = pipeline.load_image(case)
+    assert np.allclose(data, img) and zooms[:3] == [1.5, 1.5, 8.0]
+    pipeline.write_outputs(proj, case)                     # an opened result writes nothing
+    assert case.outputs == {} and sorted(os.listdir(out)) == ['notes.mat', 'sub1_pred_v9999.mat']
+    with pytest.raises(ValueError):
+        io.load_legacy_mat(str(out / 'notes.mat'))

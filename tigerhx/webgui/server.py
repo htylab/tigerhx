@@ -15,8 +15,9 @@ import secrets
 import subprocess
 import sys
 import threading
+import time
 import traceback
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from dataclasses import asdict
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -47,8 +48,24 @@ class App:
         self._cache = OrderedDict()
         self._cache_lock = threading.Lock()
         self._analysis_lock = threading.Lock()  # one reanalysis at a time
+        self._log = deque(maxlen=2000)
+        self._log_id = 0
+        self._log_lock = threading.Lock()
+        self.log(f'Workspace: {self.project.workspace}')
         threading.Thread(target=self._worker, daemon=True).start()
         threading.Thread(target=self._refresh_old_cases, daemon=True).start()
+
+    # ---- log ---------------------------------------------------------
+    def log(self, text, level='info'):
+        """A message for the GUI's log panel (the original GUI's log box)."""
+        with self._log_lock:
+            self._log_id += 1
+            self._log.append({'id': self._log_id, 'time': time.strftime('%H:%M:%S'),
+                              'level': level, 'text': text})
+
+    def log_since(self, after=0):
+        with self._log_lock:
+            return [e for e in self._log if e['id'] > after]
 
     # ---- state -------------------------------------------------------
     def state(self):
@@ -61,6 +78,7 @@ class App:
         if not settings.get('model') or settings['model'] not in choices:
             settings['model'] = available[-1] if available else models.GUI_MODELS[-1]
         return {'cases': cases, 'settings': settings, 'workspace': p.workspace,
+                'output_dir': p.output_dir(),
                 'models': [{'name': m, 'downloaded': m in available} for m in choices],
                 'running': self.current, 'queued': self.jobs.qsize(),
                 'model_status': dict(self.model_status)}
@@ -70,13 +88,14 @@ class App:
         old checks: redo their (cheap) analysis once."""
         p = self.project
         with p.lock:
-            old = [c for c in p.cases.values() if c.status in ('review', 'done') and c.crop is None]
+            old = [c for c in p.cases.values() if c.status in ('review', 'done') and (
+                c.crop is None or not isfile(join(p.case_dir(c), 'sectors.nii.gz')))]
         for case in old:
             try:
                 if case.status in ('review', 'done') and pipeline.has_seg(p, case):
                     with self._analysis_lock:
                         pipeline.analyze_case(p, case)
-                    self.invalidate(case.id, 'aha')
+                    self.invalidate(case.id)
             except Exception:
                 traceback.print_exc()
         if old:
@@ -85,28 +104,81 @@ class App:
     def update_settings(self, values):
         p = self.project
         with p.lock:
-            for k in ('model', 'save_mat', 'mat_in_inputdir', 'nii_in_inputdir'):
+            for k in ('model', 'save_mat', 'mat_in_inputdir', 'nii_in_inputdir', 'output_dir'):
                 if k in values:
-                    p.settings[k] = values[k] if k == 'model' else bool(values[k])
+                    p.settings[k] = str(values[k]).strip() if k in ('model', 'output_dir') \
+                        else bool(values[k])
             p.save()
+
+    # ---- cases -------------------------------------------------------
+    def add(self, paths, include='', exclude='', results=False):
+        """Add NIfTI files/folders, case-list CSVs or original-GUI results;
+        results are opened right away by the worker."""
+        r = self.project.add_paths(paths, include, exclude, results)
+        for path in r['missing']:
+            self.log(f'Not found, skipped: {path}', 'warn')
+        mats = [c.id for c in r['added'] if c.kind == 'mat']
+        csv_apex = sum(1 for c in r['added'] + r['updated'] if c.kind != 'mat' and c.apex_confirmed)
+        self.log(f"Added {len(r['added'])} case(s)" + (f", updated {len(r['updated'])}" if r['updated'] else '')
+                 + (f', {csv_apex} with the apex from the CSV' if csv_apex else ''))
+        if mats:
+            self._queue(mats, None)
+        return {'added': len(r['added']), 'updated': len(r['updated']), 'missing': r['missing']}
+
+    def gen_csv(self, folders, include='', exclude=''):
+        path, n = self.project.gen_csv(folders, include, exclude)
+        self.log(f'GenCSV: {n} file(s) listed in {path}; fill in the Apex column and add the CSV')
+        return {'path': path, 'count': n}
+
+    def download_all(self):
+        """Fetch every GUI model now (for a computer that is usually offline)."""
+        missing = [m for m in models.GUI_MODELS if not isfile(join(models.model_dir(), m))]
+
+        def work():
+            for name in missing:
+                self.log(f'Downloading {name} ...')
+                self.model_status.update(state='downloading', name=name, progress=0.0, message='')
+                try:
+                    models.ensure_model(name, progress=self._model_progress)
+                    self.log(f'Downloaded {name}')
+                except Exception as e:
+                    self.log(f'Download failed: {name}: {e}', 'error')
+                    self.model_status.update(state='error', message=str(e))
+                    return
+            self.model_status['state'] = 'idle'
+        if missing:
+            threading.Thread(target=work, daemon=True).start()
+        else:
+            self.log('All models are already downloaded')
+        return len(missing)
 
     # ---- jobs --------------------------------------------------------
     def run(self, ids):
         p = self.project
         with p.lock:
             model = p.settings.get('model') or models.GUI_MODELS[-1]
-            targets = ids or [c.id for c in p.cases.values() if c.status in ('pending', 'error')]
+            targets = ids or [c.id for c in p.cases.values()
+                              if c.status in ('pending', 'error') and c.kind != 'mat']
+        return self._queue(targets, model)
+
+    def _queue(self, ids, model):
+        p = self.project
+        with p.lock:
             queued = []
-            for cid in targets:
+            for cid in ids:
                 c = p.cases.get(cid)
                 if c is None or c.status in ('queued', 'running'):
                     continue
+                if c.kind == 'mat' and c.status in ('review', 'done'):
+                    continue  # an opened result is read once; there is nothing to re-run
                 c.status, c.progress, c.message = 'queued', 0.0, ''
                 queued.append(cid)
             p.save()
         self.cancel.clear()
         for cid in queued:
             self.jobs.put((cid, model))
+        if queued and model:
+            self.log(f'Queued {len(queued)} case(s) with {model}')
         return len(queued)
 
     def stop(self):
@@ -135,6 +207,15 @@ class App:
                 continue
             self.current = cid
             try:
+                if case.kind == 'mat':
+                    with p.lock:
+                        case.status, case.progress = 'running', 0.0
+                    pipeline.import_mat_case(p, case)
+                    with p.lock:
+                        case.status = 'done' if case.apex_confirmed else 'review'
+                        case.message = ''
+                    self.log(f'Opened {case.name}' + (f' (apex {case.apex_slice})' if case.apex_confirmed else ''))
+                    continue
                 if not isfile(join(models.model_dir(), model)):
                     self.model_status.update(state='downloading', name=model, progress=0.0, message='')
                 try:
@@ -144,6 +225,7 @@ class App:
                         self.model_status['state'] = 'idle'
                 with p.lock:
                     case.status, case.progress = 'running', 0.0
+                self.log(f'Segmenting {case.name} ...')
 
                 def progress(done, total):
                     case.progress = done / total
@@ -152,13 +234,19 @@ class App:
                 with p.lock:
                     case.status = 'done' if case.apex_confirmed else 'review'
                     case.message = ''
+                self.log(f'Finished {case.name}: apex {case.apex_slice}'
+                         + (' (confirmed)' if case.apex_confirmed else ' (suggested)')
+                         + (f", {len(case.checks)} slice(s) to check" if case.checks else '')
+                         + ''.join(f'; wrote {v}' for v in case.outputs.values()))
             except Cancelled:
                 with p.lock:
                     case.status, case.progress, case.message = 'pending', 0.0, 'stopped'
+                self.log(f'Stopped {case.name}', 'warn')
             except Exception as e:
                 traceback.print_exc()
                 with p.lock:
                     case.status, case.message = 'error', f'{type(e).__name__}: {e}'
+                self.log(f'{case.name}: {case.message}', 'error')
                 if self.model_status['state'] == 'downloading' or 'download' in str(e):
                     self.model_status.update(state='error', message=str(e))
             finally:
@@ -177,6 +265,7 @@ class App:
         with self._analysis_lock:
             change(case)
         self.invalidate(cid, 'aha')
+        self.invalidate(cid, 'sectors')
         p.save()
         threading.Thread(target=self._write_outputs, args=(case,), daemon=True).start()
 
@@ -186,6 +275,8 @@ class App:
         if nz is not None and not 0 <= int(apex_slice) < nz:
             raise ValueError(f'apex slice must be within 0..{nz - 1}')
         self._analyze(cid, lambda c: pipeline.set_apex(self.project, c, apex_slice, base_first))
+        self.log(f'{case.name}: apex set to slice {case.apex_slice}'
+                 + ('' if case.base_first else ' (apex -> base order)'))
 
     def _write_outputs(self, case):
         try:
@@ -195,6 +286,7 @@ class App:
             traceback.print_exc()
             with self.project.lock:
                 case.message = f'output: {type(e).__name__}: {e}'
+            self.log(f'{case.name}: {case.message}', 'error')
 
     # ---- volumes for the viewer --------------------------------------
     def invalidate(self, cid, kind=None):
@@ -213,9 +305,9 @@ class App:
         p = self.project
         case = p.cases[cid]
         if kind == 'image':
-            data, _, _, zooms = io.load_nifti(case.path)
+            data, _, _, zooms = pipeline.load_image(case)
         else:
-            fname = 'aha17.nii.gz' if kind == 'aha' else 'seg.nii.gz'
+            fname = {'aha': 'aha17.nii.gz', 'sectors': 'sectors.nii.gz'}.get(kind, 'seg.nii.gz')
             path = join(p.case_dir(case), fname)
             if not isfile(path):
                 raise FileNotFoundError(fname)
@@ -321,9 +413,12 @@ def make_handler(app):
             try:
                 if parts == ['api', 'state']:
                     return self._json(app.state())
+                if parts == ['api', 'log']:
+                    after = int(parse_qs(url.query).get('after', ['0'])[0] or 0)
+                    return self._json({'entries': app.log_since(after)})
                 if len(parts) == 5 and parts[:2] == ['api', 'cases'] and parts[3] == 'volume':
                     kind = parts[4].split('.')[0]
-                    if kind not in ('image', 'seg', 'aha') or parts[2] not in app.project.cases:
+                    if kind not in ('image', 'seg', 'aha', 'sectors') or parts[2] not in app.project.cases:
                         return self._json({'error': 'not found'}, 404)
                     crop = parse_qs(url.query).get('crop', ['0'])[0] == '1'
                     return self._send(200, app.volume(parts[2], kind, crop), 'application/octet-stream')
@@ -341,9 +436,13 @@ def make_handler(app):
             try:
                 body = self._body()
                 if parts == ['api', 'cases', 'add']:
-                    added = app.project.add_paths(body.get('paths', []), body.get('include', ''),
-                                                  body.get('exclude', ''))
-                    return self._json({'added': len(added)})
+                    return self._json(app.add(body.get('paths', []), body.get('include', ''),
+                                              body.get('exclude', ''), bool(body.get('results'))))
+                if parts == ['api', 'gencsv']:
+                    return self._json(app.gen_csv(body.get('paths', []), body.get('include', ''),
+                                                  body.get('exclude', '')))
+                if parts == ['api', 'models', 'download']:
+                    return self._json({'downloading': app.download_all()})
                 if parts == ['api', 'cases', 'remove']:
                     app.project.remove(body.get('ids', []))
                     return self._json({'ok': True})
@@ -356,10 +455,13 @@ def make_handler(app):
                     app.update_settings(body)
                     return self._json({'ok': True})
                 if parts == ['api', 'open']:
-                    cid = body.get('id')
+                    cid, folder = body.get('id'), body.get('folder')
                     path = app.project.workspace
                     if cid in app.project.cases:
                         path = app.project.case_dir(app.project.cases[cid])
+                    elif folder in ('output', 'csv'):
+                        path = app.project.output_dir() if folder == 'output' else app.project.csv_dir()
+                        os.makedirs(path, exist_ok=True)
                     if isdir(path):
                         open_in_file_manager(path)
                     return self._json({'path': path})

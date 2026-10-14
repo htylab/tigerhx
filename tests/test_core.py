@@ -239,3 +239,12 @@ def test_crop_box():
     assert io.crop_box(np.zeros((5, 7, 2, 1), np.uint8)) == [0, 5, 0, 7]
     assert io.crop_box(seg, margin=1000) == [0, seg.shape[0], 0, seg.shape[1]]
 
+
+def test_legacy_apex_slice():
+    seg = phantom()
+    for apex in (3, 5):
+        assert aha.legacy_apex_slice(aha.legacy_lvm(seg, apex)) == apex
+    # slices without an RV keep the whole myocardium as 1, so no sectors are
+    # left to show where the apex started
+    assert aha.legacy_apex_slice(aha.legacy_lvm(seg, 6)) is None
+    assert aha.legacy_apex_slice(aha.legacy_lvm(seg, None)) is None

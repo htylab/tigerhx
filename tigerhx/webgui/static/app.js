@@ -7,7 +7,7 @@ const I18N = {
     runAll: n => `▶ 分割待處理 (${n})`, runChecked: n => `▶ 分割已選 (${n})`,
     settings: '設定', pathsLabel: '檔案或資料夾路徑（每行一個）',
     include: '包含關鍵字（逗號分隔，空白=全部）', exclude: '排除關鍵字', add: '加入', cancel: '取消',
-    saveMat: '在工作資料夾輸出 .mat（舊版格式）', matInput: '.mat 也存到原始資料夾',
+    saveMat: '輸出 .mat 到輸出資料夾（舊版格式）', matInput: '.mat 也存到原始資料夾',
     niiInput: '分割 .nii.gz 存到原始資料夾', workspace: '工作資料夾', openFolder: '開啟資料夾',
     cases: '病例', colName: '名稱', colStatus: '狀態', colApex: 'Apex', colChecks: '檢查',
     emptyCases: '按「＋ 檔案」或「＋ 資料夾」加入 cine NIfTI。\n不需要先準備 CSV，也不用先填 Apex：分割完成後再看著影像確認。',
@@ -28,6 +28,15 @@ const I18N = {
     confirmRemove: n => `從清單移除 ${n} 個病例？（不會刪除檔案）`,
     notSegmented: '尚未分割。', error: '錯誤',
     lblLV: 'LV 血池', lblMYO: '心肌', lblRV: 'RV 血池', lblEndo: 'LV 心內膜', lblEpi: 'LV 心外膜',
+    ovSectors: '6/4 分區', ovLV: 'LV', ovRV: 'RV', overlay: '疊圖', cmap: '色表',
+    openResults: '開啟結果 (.mat)', genCsv: '產生 CSV (GenCSV)', resultsPrompt: '含 *pred*.mat 的資料夾',
+    addedFull: (a, u, m) => `加入 ${a} 個病例` + (u ? `，更新 ${u} 個` : '') + (m ? `，${m} 個檔案找不到（見 Log）` : ''),
+    genCsvDone: (n, p) => `GenCSV：${n} 個檔案 → ${p}（填好 Apex 後用「＋ 檔案」加入這個 CSV）`,
+    outputDir: '.mat 輸出資料夾', outputDirHint: '空白 = 工作資料夾/output', csvDir: 'CSV 資料夾',
+    downloadAll: '下載全部模型', downloadStarted: n => (n ? `開始下載 ${n} 個模型` : '全部模型都已下載'),
+    log: 'Log', kindMat: '舊結果', matNote: '舊版 GUI 的結果（唯讀）：apex 取自其 6/4 分區；不會寫出任何檔案。',
+    csvNote: '來自 CSV：', apexFromCsv: 'apex 已確認', ownOutputs: (m, n) => `.mat 存原始資料夾 ${m}、.nii.gz 存原始資料夾 ${n}`,
+    yes: '是', no: '否', sectorsLegend: (n) => `${n} 分區`,
     wall_anterior: '前壁', wall_anteroseptal: '前間隔', wall_inferoseptal: '下間隔', wall_inferior: '下壁',
     wall_inferolateral: '下側壁', wall_anterolateral: '前側壁', wall_septal: '間隔', wall_lateral: '側壁', wall_apex: '心尖',
     modelMissing: '（首次使用時下載）',
@@ -43,7 +52,7 @@ const I18N = {
     runAll: n => `▶ Segment pending (${n})`, runChecked: n => `▶ Segment checked (${n})`,
     settings: 'Settings', pathsLabel: 'File or folder paths (one per line)',
     include: 'Include keywords (comma separated, empty = all)', exclude: 'Exclude keywords', add: 'Add', cancel: 'Cancel',
-    saveMat: 'Write legacy .mat to the workspace', matInput: 'Also write .mat next to the input',
+    saveMat: 'Write legacy .mat to the output folder', matInput: 'Also write .mat next to the input',
     niiInput: 'Write segmentation .nii.gz next to the input', workspace: 'Workspace', openFolder: 'Open folder',
     cases: 'Cases', colName: 'Name', colStatus: 'Status', colApex: 'Apex', colChecks: 'QC',
     emptyCases: 'Use “＋ Files” or “＋ Folder” to add cine NIfTI images.\nNo CSV and no apex needed up front: confirm the apex on the images after segmentation.',
@@ -64,6 +73,15 @@ const I18N = {
     confirmRemove: n => `Remove ${n} case(s) from the list? (files are kept)`,
     notSegmented: 'Not segmented yet.', error: 'Error',
     lblLV: 'LV blood', lblMYO: 'Myocardium', lblRV: 'RV blood', lblEndo: 'LV endocardium', lblEpi: 'LV epicardium',
+    ovSectors: '6/4 sectors', ovLV: 'LV', ovRV: 'RV', overlay: 'Overlay', cmap: 'Colour map',
+    openResults: 'Open results (.mat)', genCsv: 'Generate CSV (GenCSV)', resultsPrompt: 'Folder with *pred*.mat files',
+    addedFull: (a, u, m) => `Added ${a} case(s)` + (u ? `, updated ${u}` : '') + (m ? `, ${m} file(s) not found (see Log)` : ''),
+    genCsvDone: (n, p) => `GenCSV: ${n} file(s) → ${p} (fill in Apex, then add the CSV with “＋ Files”)`,
+    outputDir: '.mat output folder', outputDirHint: 'empty = workspace/output', csvDir: 'CSV folder',
+    downloadAll: 'Download all models', downloadStarted: n => (n ? `Downloading ${n} model(s)` : 'All models are already downloaded'),
+    log: 'Log', kindMat: 'result', matNote: 'Result of the original GUI (read-only): apex taken from its 6/4 sectors; nothing is written.',
+    csvNote: 'From the CSV: ', apexFromCsv: 'apex confirmed', ownOutputs: (m, n) => `.mat next to input ${m}, .nii.gz next to input ${n}`,
+    yes: 'yes', no: 'no', sectorsLegend: (n) => `${n} sectors`,
     wall_anterior: 'Anterior', wall_anteroseptal: 'Anteroseptal', wall_inferoseptal: 'Inferoseptal', wall_inferior: 'Inferior',
     wall_inferolateral: 'Inferolateral', wall_anterolateral: 'Anterolateral', wall_septal: 'Septal', wall_lateral: 'Lateral', wall_apex: 'Apex',
     modelMissing: ' (downloaded on first use)',
@@ -109,7 +127,9 @@ const S = {
   view: 'single', zoom: 'heart', overlay: 'seg', opacity: 0.45,
   frame: 0, slice: null, playing: null,
   loadedKey: null, ahaKey: null, loading: false, message: '', error: false,
+  cmap: 'gray', logId: 0, logOpen: false,
 };
+try { S.cmap = localStorage.getItem('tigerhx_cmap') || 'gray'; } catch (e) { /* storage blocked */ }
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -138,8 +158,25 @@ async function refresh() {
   S.state = await api('/api/state');
   render();
 }
+async function pollLog() {
+  const r = await api(`/api/log?after=${S.logId}`);
+  if (!r.entries || !r.entries.length) return;
+  const box = $('logBody');
+  const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
+  for (const e of r.entries) {
+    const row = document.createElement('div');
+    row.className = `log-${e.level}`;
+    row.textContent = `${e.time}  ${e.text}`;
+    box.appendChild(row);
+    S.logId = e.id;
+  }
+  while (box.childElementCount > 2000) box.firstElementChild.remove();
+  if (atEnd) box.scrollTop = box.scrollHeight;
+  const last = r.entries[r.entries.length - 1];
+  if (last.level === 'error' && !S.logOpen) $('btnLog').classList.add('alert');
+}
 async function poll() {
-  try { await refresh(); } catch (e) { say(`${t('error')}: ${e.message}`, true); }
+  try { await refresh(); await pollLog(); } catch (e) { say(`${t('error')}: ${e.message}`, true); }
   const busy = S.state && (S.state.running || S.state.queued || S.state.model_status.state === 'downloading');
   setTimeout(poll, busy ? 500 : 1500);
 }
@@ -178,9 +215,11 @@ function renderTop(st) {
   if (document.activeElement !== sel) sel.value = st.settings.model;
   document.querySelectorAll('[data-setting]').forEach(el => { el.checked = !!st.settings[el.dataset.setting]; });
   $('workspace').textContent = st.workspace;
+  if (document.activeElement !== $('outputDir')) $('outputDir').value = st.settings.output_dir || '';
+  $('outputDir').placeholder = `${st.output_dir}  (${t('outputDirHint')})`;
 
   const checked = [...S.checked].filter(id => st.cases.some(c => c.id === id));
-  const pending = st.cases.filter(c => c.status === 'pending' || c.status === 'error').length;
+  const pending = st.cases.filter(c => (c.status === 'pending' || c.status === 'error') && c.kind !== 'mat').length;
   const run = $('btnRun');
   run.textContent = checked.length ? t('runChecked', checked.length) : t('runAll', pending);
   run.disabled = checked.length ? false : pending === 0;
@@ -206,7 +245,7 @@ function renderCases(st) {
     const msg = c.message && c.status === 'error' ? `<div class="case-msg">${esc(c.message)}</div>` : '';
     return `<tr class="row${c.id === S.selected ? ' selected' : ''}" data-id="${c.id}" title="${esc(c.path)}">
       <td><input type="checkbox" data-check="${c.id}"${S.checked.has(c.id) ? ' checked' : ''}></td>
-      <td class="name">${esc(c.name)}${msg}</td><td>${chip(c)}</td>
+      <td class="name">${esc(c.name)}${c.kind === 'mat' ? ` <span class="tag">${esc(t('kindMat'))}</span>` : ''}${msg}</td><td>${chip(c)}</td>
       <td class="num">${esc(apex)}</td><td class="num">${qc}</td></tr>`;
   }).join('');
   if (body.dataset.html !== rows) { body.innerHTML = rows; body.dataset.html = rows; }
@@ -266,10 +305,10 @@ function renderViewerBars(c) {
     b.classList.toggle('on', b.dataset.v === (seg && c.crop ? S.zoom : 'full'));
     b.disabled = !seg || !c.crop;
   });
-  document.querySelectorAll('#overlayMode button').forEach(b => {
-    b.classList.toggle('on', b.dataset.v === S.overlay);
-    b.disabled = b.dataset.v !== 'none' && !seg;
-  });
+  const ov = $('overlayMode');
+  ov.disabled = !seg;
+  if (document.activeElement !== ov) ov.value = seg ? S.overlay : 'none';
+  if (document.activeElement !== $('cmap')) $('cmap').value = S.cmap;
 }
 
 // ---------------------------------------------------------------- results
@@ -284,11 +323,16 @@ function checkText(k) {
 
 function renderResults(c) {
   const box = $('results');
-  const key = c ? JSON.stringify([c.id, c.status, c.model, c.ed, c.es, c.checks, c.outputs, lang, c.message]) : 'none';
+  const key = c ? JSON.stringify([c.id, c.status, c.model, c.ed, c.es, c.checks, c.outputs, lang, c.message,
+    c.kind, c.mat_in_inputdir, c.nii_in_inputdir, c.apex_confirmed]) : 'none';
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   if (!c) { box.innerHTML = `<div class="empty">${esc(t('noResults'))}</div>`; return; }
-  const info = `<div class="info"><b>${esc(c.name)}</b><br><span class="mono">${esc(c.path)}</span></div>`;
+  const yn = v => (v === null || v === undefined ? '–' : t(v ? 'yes' : 'no'));
+  const own = c.mat_in_inputdir !== null || c.nii_in_inputdir !== null;
+  const info = `<div class="info"><b>${esc(c.name)}</b><br><span class="mono">${esc(c.path)}</span></div>` +
+    (c.kind === 'mat' ? `<div class="info">${esc(t('matNote'))}</div>` : '') +
+    (own ? `<div class="info">${esc(t('csvNote') + t('ownOutputs', yn(c.mat_in_inputdir), yn(c.nii_in_inputdir)))}</div>` : '');
   if (!isSegmented(c)) {
     const msg = c.status === 'error' ? `<div class="case-msg">${esc(c.message)}</div>` : '';
     box.innerHTML = `${info}<div class="empty">${esc(t('notSegmented'))}</div>${msg}`;
@@ -335,12 +379,15 @@ function showReadout(d) {
   if (!c || !d.values) { el.classList.add('hidden'); return; }
   const val = name => { const v = d.values.find(x => x.name === name); return v ? Math.round(v.value) : 0; };
   const parts = [`slice ${S.slice}`];
-  if (S.overlay === 'seg' || S.overlay === 'edge') {
+  if (['seg', 'edge', 'lv', 'rv'].includes(S.overlay)) {
     const s = val('seg.nii');
     if (s) parts.push([null, t('lblLV'), t('lblMYO'), t('lblRV')][s]);
   } else if (S.overlay === 'aha') {
     const a = val('aha.nii');
     if (a) parts.push(`AHA ${a} · ${AHA_NAMES[a]}`);
+  } else if (S.overlay === 'sectors') {
+    const a = val('sectors.nii');
+    if (a) parts.push(`${t('ovSectors')} · ${a}`);
   }
   el.textContent = parts.join(' · ');
   el.classList.remove('hidden');
@@ -354,7 +401,8 @@ function renderLegend(items = []) {
   el.classList.toggle('hidden', !items.length);
   el.replaceChildren(...items.map(([c, label]) => {
     const s = document.createElement('span');
-    const i = document.createElement('i'); i.style.background = rgb(c);
+    const i = document.createElement('i');
+    if (c) i.style.background = rgb(c); else i.style.visibility = 'hidden';
     s.append(i, document.createTextNode(label));
     return s;
   }));
@@ -390,8 +438,10 @@ async function maybeLoadCase(c) {
     if (seg) {
       vols.push({ url: volUrl(c, 'seg', stamp), name: 'seg.nii' });
       vols.push({ url: volUrl(c, 'aha', ahaVersion(c)), name: 'aha.nii' });
+      vols.push({ url: volUrl(c, 'sectors', ahaVersion(c)), name: 'sectors.nii' });
     }
     await nv.loadVolumes(vols);
+    applyColormap();
     if (seg) {
       S.ahaKey = ahaVersion(c);
     } else if (S.overlay !== 'none') {
@@ -420,13 +470,15 @@ async function maybeLoadCase(c) {
 }
 
 async function reloadAha(c) {
-  const old = nv.volumes.find(v => v.name === 'aha.nii');
-  if (!old) return;
+  if (!nv.volumes.some(v => v.name === 'aha.nii')) return;
   S.loading = true;
   try {
-    const vol = await niivue.NVImage.loadFromUrl({ url: volUrl(c, 'aha', ahaVersion(c)), name: 'aha.nii' });
-    nv.removeVolume(old);
-    nv.addVolume(vol);
+    for (const kind of ['aha', 'sectors']) {  // both depend on the apex and slice order
+      const old = nv.volumes.find(v => v.name === `${kind}.nii`);
+      const vol = await niivue.NVImage.loadFromUrl({ url: volUrl(c, kind, ahaVersion(c)), name: `${kind}.nii` });
+      if (old) nv.removeVolume(old);
+      nv.addVolume(vol);
+    }
     S.ahaKey = ahaVersion(c);
     shapeCache.clear();
     applyOverlay();
@@ -438,8 +490,13 @@ async function reloadAha(c) {
 
 function applyOverlay() {
   // the label volumes only provide data (and the readout); drawOverlay draws them
-  ['seg.nii', 'aha.nii'].forEach(name => { if (volIndex(name) > 0) nv.setOpacity(volIndex(name), 0); });
+  ['seg.nii', 'aha.nii', 'sectors.nii'].forEach(name => { if (volIndex(name) > 0) nv.setOpacity(volIndex(name), 0); });
   drawOverlay();
+}
+function applyColormap() {  // the original GUI's gray / viridis choice
+  if (!nv.volumes.length) return;
+  nv.volumes[0].colormap = S.cmap;
+  nv.updateGLVolume();
 }
 function applyFrame() {
   nv.volumes.forEach(v => { if (v.nFrame4D > 1) nv.setFrame4D(v.id, S.frame); });
@@ -636,8 +693,8 @@ function shapesAt(mode, k, t) {
   const key = `${mode}|${k}|${t}`;
   if (shapeCache.has(key)) return shapeCache.get(key);
   let out = null;
-  if (mode === 'aha') {
-    const sl = labelSlice('aha.nii', k, t);
+  if (mode === 'aha' || mode === 'sectors') {
+    const sl = labelSlice(`${mode}.nii`, k, t);
     if (sl) {
       const present = [...new Set(sl.data)].filter(v => v >= 1 && v <= 17).sort((x, y) => x - y);
       out = { segments: present.map(sgm => ({ sgm, ...outlines(sl, v => v === sgm) })) };
@@ -674,7 +731,7 @@ function drawOverlay() {
   for (const tile of nv.screenSlices) {
     if (tile.axCorSag !== 0 || !tile.fovMM || tile.fovMM.length < 2) continue;
     const k = Math.round(tile.sliceFrac * nz - 0.5);
-    const g = shapesAt(mode === 'aha' ? 'aha' : 'seg', k, S.frame);
+    const g = shapesAt(mode === 'aha' || mode === 'sectors' ? mode : 'seg', k, S.frame);
     if (!g) continue;
     const [L, T, W, H] = tile.leftTopWidthHeight;
     const [mx, my] = tile.leftTopMM, [fx, fy] = tile.fovMM;
@@ -696,6 +753,10 @@ function drawOverlay() {
       [['epi', SEG_LINE.MYO], ['endo', SEG_LINE.LV], ['rv', SEG_LINE.RV]].forEach(([name, col]) => {
         ctx.strokeStyle = rgb(col); ctx.stroke(path(g[name]));
       });
+    } else if (mode === 'lv' || mode === 'rv') {  // one structure, as the original LV / RV views
+      const p = path(mode === 'lv' ? g.endo : g.rv), name = mode === 'lv' ? 'LV' : 'RV';
+      ctx.fillStyle = rgb(SEG_FILL[name], Math.min(1, S.opacity + 0.2)); ctx.fill(p);
+      ctx.lineWidth = 1 * dpr; ctx.strokeStyle = rgb(SEG_LINE[name], 0.9); ctx.stroke(p);
     } else if (mode === 'seg') {
       const myo = path(g.endo, path(g.epi)), lv = path(g.endo), rv = path(g.rv);
       ctx.fillStyle = rgb(SEG_FILL.MYO, S.opacity); ctx.fill(myo, 'evenodd');
@@ -706,9 +767,15 @@ function drawOverlay() {
         ctx.strokeStyle = rgb(col, 0.85); ctx.stroke(p);
       });
     } else {
+      // 6/4 sectors (original GUI): sector n has the wall of AHA segment n, or
+      // of 12 + n on the apical slices that have 4 sectors
+      const apical = mode === 'sectors' && c.apex_slice !== null &&
+        (c.base_first === false ? k <= c.apex_slice : k >= c.apex_slice);
+      const wallOf = n => AHA_WALL[mode === 'aha' ? n : (apical ? 12 + Math.min(n, 4) : n)];
+      if (mode === 'sectors' && g.segments.length) walls.add(apical ? 'n4' : 'n6');
       for (const sg of g.segments) {
-        const col = WALL_COLORS[AHA_WALL[sg.sgm]];
-        walls.add(AHA_WALL[sg.sgm]);
+        const col = WALL_COLORS[wallOf(sg.sgm)];
+        walls.add(wallOf(sg.sgm));
         ctx.fillStyle = rgb(col, Math.min(1, S.opacity + 0.2)); ctx.fill(path(sg.lines));
       }
       ctx.lineWidth = 1 * dpr;
@@ -726,8 +793,12 @@ function drawOverlay() {
     }
     ctx.restore();
   }
-  if (mode === 'aha') {
-    renderLegend(Object.keys(WALL_COLORS).filter(w => walls.has(w)).map(w => [WALL_COLORS[w], t('wall_' + w)]));
+  if (mode === 'aha' || mode === 'sectors') {
+    const counts = ['n6', 'n4'].filter(n => walls.has(n)).map(n => t('sectorsLegend', n.slice(1))).join(' / ');
+    renderLegend(Object.keys(WALL_COLORS).filter(w => walls.has(w)).map(w => [WALL_COLORS[w], t('wall_' + w)])
+      .concat(counts ? [[null, counts]] : []));
+  } else if (mode === 'lv' || mode === 'rv') {
+    renderLegend([mode === 'lv' ? [SEG_FILL.LV, t('lblLV')] : [SEG_FILL.RV, t('lblRV')]]);
   } else if (mode === 'edge') {
     renderLegend([[SEG_LINE.LV, t('lblEndo')], [SEG_LINE.MYO, t('lblEpi')], [SEG_LINE.RV, t('lblRV')]]);
   } else {
@@ -738,9 +809,9 @@ const drawScene = nv.drawScene.bind(nv);
 nv.drawScene = (...args) => { const r = drawScene(...args); drawOverlay(); return r; };
 
 // ---------------------------------------------------------------- actions
-async function addPaths(paths, include = '', exclude = '') {
-  const r = await api('/api/cases/add', { paths, include, exclude });
-  say(t('added', r.added));
+async function addPaths(paths, include = '', exclude = '', results = false) {
+  const r = await api('/api/cases/add', { paths, include, exclude, results });
+  say(t('addedFull', r.added, r.updated || 0, (r.missing || []).length), (r.missing || []).length > 0);
   await refresh();
 }
 // native file dialogs: the Rust app's bridge or the pywebview API
@@ -770,6 +841,39 @@ function bind() {
     $('addPanel').classList.add('hidden');
   });
   $('btnAddCancel').onclick = () => $('addPanel').classList.add('hidden');
+  $('btnGenCsv').onclick = guard(async () => {
+    const paths = $('addPaths').value.split('\n').map(s => s.trim()).filter(Boolean);
+    if (!paths.length) return;
+    const r = await api('/api/gencsv', { paths, include: $('addInclude').value, exclude: $('addExclude').value });
+    say(t('genCsvDone', r.count, r.path));
+    $('addPanel').classList.add('hidden');
+  });
+  $('btnOpenResults').onclick = guard(async () => {
+    let dirs = null;
+    if (native()) dirs = await native().pick_folder();
+    else {
+      const d = window.prompt(t('resultsPrompt'), S.state ? S.state.output_dir : '');
+      dirs = d ? [d] : null;
+    }
+    if (dirs && dirs.length) await addPaths(dirs, '', '', true);
+  });
+  $('outputDir').onchange = guard(async () => {
+    await api('/api/settings', { output_dir: $('outputDir').value });
+    await refresh();
+  });
+  $('btnOpenOutput').onclick = guard(() => api('/api/open', { folder: 'output' }));
+  $('btnOpenCsv').onclick = guard(() => api('/api/open', { folder: 'csv' }));
+  $('btnDownloadAll').onclick = guard(async () => {
+    const r = await api('/api/models/download', {});
+    say(t('downloadStarted', r.downloading));
+    await refresh();
+  });
+  $('btnLog').onclick = () => {
+    S.logOpen = !S.logOpen;
+    $('logPanel').classList.toggle('hidden', !S.logOpen);
+    $('btnLog').classList.remove('alert');
+    if (S.logOpen) $('logBody').scrollTop = $('logBody').scrollHeight;
+  };
   $('btnSettings').onclick = () => $('settingsPanel').classList.toggle('hidden');
   document.querySelectorAll('[data-setting]').forEach(el => {
     el.onchange = guard(async () => { await api('/api/settings', { [el.dataset.setting]: el.checked }); await refresh(); });
@@ -828,9 +932,12 @@ function bind() {
   document.querySelectorAll('#zoomMode button').forEach(b => {
     b.onclick = () => { S.zoom = b.dataset.v; renderViewerBars(selectedCase()); render(); };
   });
-  document.querySelectorAll('#overlayMode button').forEach(b => {
-    b.onclick = () => { S.overlay = b.dataset.v; applyOverlay(); renderViewerBars(selectedCase()); };
-  });
+  $('overlayMode').onchange = () => { S.overlay = $('overlayMode').value; applyOverlay(); renderViewerBars(selectedCase()); };
+  $('cmap').onchange = () => {
+    S.cmap = $('cmap').value;
+    try { localStorage.setItem('tigerhx_cmap', S.cmap); } catch (e) { /* ignore */ }
+    applyColormap();
+  };
   $('opacity').oninput = () => { S.opacity = +$('opacity').value; applyOverlay(); };
   $('frame').oninput = () => setFrame(+$('frame').value);
   $('btnPlay').onclick = togglePlay;

@@ -84,6 +84,20 @@ def legacy_lvm(seg, apex_slice, base_first=True):
     return lvm
 
 
+def legacy_apex_slice(lvm):
+    """First apical slice of an original-GUI result, read back from its
+    'LVM' field (base first, as that GUI assumed): the first slice whose
+    sectors stop at 4.  None when every slice has 6 sectors."""
+    lvm = np.asarray(lvm)
+    while lvm.ndim < 4:
+        lvm = lvm[..., None]
+    top = lvm.max(axis=(0, 1, 3))
+    for z in range(lvm.shape[2]):
+        if 2 <= top[z] <= 4 and (top[z + 1:] <= 4).all():
+            return int(z)
+    return None
+
+
 def legacy_seg_aha(seg, lvm):
     """Original 'SegAHA' field: segmentation with sectors written as 8..13."""
     out = seg.astype(np.int64)

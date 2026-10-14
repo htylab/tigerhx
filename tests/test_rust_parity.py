@@ -109,7 +109,7 @@ def runs(request, tmp_path_factory):
         if impl == 'py':
             p = Project(ws)
             p.settings.update(save_mat=True, mat_in_inputdir=True, nii_in_inputdir=True)
-            for c in p.add_paths([src]):
+            for c in p.add_paths([src])['added']:
                 pipeline.segment_case(p, c, model)
                 c.status = 'review'
             p.save()

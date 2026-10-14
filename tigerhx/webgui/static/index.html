@@ -12,6 +12,7 @@
   <div class="group">
     <button id="btnAddFiles" data-i18n="addFiles"></button>
     <button id="btnAddFolder" data-i18n="addFolder"></button>
+    <button id="btnOpenResults" data-i18n="openResults"></button>
   </div>
   <div class="group">
     <label><span data-i18n="model"></span> <select id="model"></select></label>
@@ -30,6 +31,7 @@
   <div class="field"><span data-i18n="include"></span><input type="text" id="addInclude" placeholder="cine"></div>
   <div class="field"><span data-i18n="exclude"></span><input type="text" id="addExclude" value="mask, _seg, aha17"></div>
   <button id="btnAddConfirm" class="primary" data-i18n="add"></button>
+  <button id="btnGenCsv" data-i18n="genCsv"></button>
   <button id="btnAddCancel" data-i18n="cancel"></button>
 </div>
 
@@ -37,8 +39,14 @@
   <label class="check"><input type="checkbox" data-setting="save_mat"> <span data-i18n="saveMat"></span></label>
   <label class="check"><input type="checkbox" data-setting="mat_in_inputdir"> <span data-i18n="matInput"></span></label>
   <label class="check"><input type="checkbox" data-setting="nii_in_inputdir"> <span data-i18n="niiInput"></span></label>
+  <label class="field-inline"><span data-i18n="outputDir"></span>
+    <input type="text" id="outputDir" class="mono" spellcheck="false"></label>
+  <button id="btnOpenOutput" class="small" data-i18n="openFolder"></button>
+  <span class="muted"><span data-i18n="csvDir"></span></span>
+  <button id="btnOpenCsv" class="small" data-i18n="openFolder"></button>
   <span class="muted"><span data-i18n="workspace"></span>: <span id="workspace" class="mono"></span></span>
   <button id="btnOpenWs" class="small" data-i18n="openFolder"></button>
+  <button id="btnDownloadAll" class="small" data-i18n="downloadAll"></button>
 </div>
 
 <main>
@@ -70,12 +78,18 @@
         <button data-v="heart" data-i18n="zoomHeart"></button>
         <button data-v="full" data-i18n="zoomFull"></button>
       </span>
-      <span class="seg-buttons" id="overlayMode">
-        <button data-v="seg" data-i18n="ovSeg"></button>
-        <button data-v="edge" data-i18n="ovEdge"></button>
-        <button data-v="aha" data-i18n="ovAha"></button>
-        <button data-v="none" data-i18n="ovNone"></button>
-      </span>
+      <label><span data-i18n="overlay"></span>
+        <select id="overlayMode">
+          <option value="seg" data-i18n="ovSeg"></option>
+          <option value="edge" data-i18n="ovEdge"></option>
+          <option value="aha" data-i18n="ovAha"></option>
+          <option value="sectors" data-i18n="ovSectors"></option>
+          <option value="lv" data-i18n="ovLV"></option>
+          <option value="rv" data-i18n="ovRV"></option>
+          <option value="none" data-i18n="ovNone"></option>
+        </select></label>
+      <label><span data-i18n="cmap"></span>
+        <select id="cmap"><option value="gray">gray</option><option value="viridis">viridis</option></select></label>
       <label class="check"><span data-i18n="opacity"></span>
         <input type="range" id="opacity" min="0" max="1" step="0.05" value="0.45"></label>
     </div>
@@ -122,7 +136,9 @@
   </section>
 </main>
 
+<div id="logPanel" class="log-panel hidden"><div id="logBody" class="mono"></div></div>
 <footer class="statusbar">
+  <button id="btnLog" class="small" data-i18n="log"></button>
   <span id="statusMain"></span>
   <span id="statusMsg"></span>
 </footer>
