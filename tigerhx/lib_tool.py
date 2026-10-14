@@ -35,50 +35,13 @@ os.makedirs(model_path, exist_ok=True)
 
 
 def download(url, file_name):
-    import urllib.request
-    import certifi
-    import shutil
-    import ssl
-    context = ssl.create_default_context(cafile=certifi.where())
-    #urllib.request.urlopen(url, cafile=certifi.where())
-    with urllib.request.urlopen(url,
-                                context=context) as response, open(file_name, 'wb') as out_file:
-        shutil.copyfileobj(response, out_file)
+    from tigerhx.core.models import download as _download
+    _download(url, file_name)
 
 
 def get_model(f):
-    from os.path import join, isfile
-    import os
-
-
-    if isfile(f):
-        return f
-
-    if '.onnx' in f:
-        fn = f
-    else:
-        fn = f + '.onnx'
-    
-    model_file = join(model_path, fn)
-    
-    if not os.path.exists(model_file):
-        
-        for server in model_servers:
-            try:
-                print(f'Downloading model files....')
-                model_url = server + fn
-                print(model_url, model_file)
-                download(model_url, model_file)
-                download_ok = True
-                print('Download finished...')
-                break
-            except:
-                download_ok = False
-
-        if not download_ok:
-            raise ValueError('Server error. Please check the model name or internet connection.')
-                
-    return model_file
+    from tigerhx.core.models import ensure_model
+    return ensure_model(f, directory=model_path)
 
 
 

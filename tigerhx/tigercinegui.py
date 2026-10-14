@@ -7,6 +7,7 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from guitool import *
+from tigerhx.core import io
 from os.path import join, isfile, basename, dirname
 from skimage.transform import resize
 import numpy as np
@@ -68,9 +69,14 @@ def on_go():
         default_dir = os.path.join(application_path, 'csv')
         selected_file = filedialog.askopenfilename(initialdir=default_dir, filetypes=filetypes)
 
+        if not selected_file:
+            log_message(GV.log_box, "No file selected.")
+            return
         files, options, common_path = run_program_gui_interaction(selected_file, GV.log_box, GV.root)
-        
-        threading.Thread(target=process_files_multithreaded,
+        if not files:
+            return
+
+        threading.Thread(target=process_files_multithreaded, daemon=True,
                          args=(files, options, model_ff, common_path, GV.stop_event)).start()
     else:
         log_message(GV.log_box, "No Selection: Please select a model from the list.")
@@ -102,6 +108,7 @@ def process_files_multithreaded(files, option_list, model_ff, common_path, stop_
             name  = os.path.relpath(file, common_path).replace(os.sep, '_')
             display_name = os.path.relpath(file, common_path)
         name = name.split('.nii')[0]
+        stem = io.strip_nii_ext(file)
         img_ori, affine, header = load_nii(file)
         img = img_ori.copy()
         voxel_size = header.get_zooms()
@@ -151,9 +158,12 @@ def process_files_multithreaded(files, option_list, model_ff, common_path, stop_
         Seg = emp.astype(int)
 
         mask = np.max(Seg, axis=(2, 3))
-        xx, yy = np.nonzero(mask)
-        x0, x1 = max(0, xx.min() - 10), min(mask.shape[0], xx.max() + 10)
-        y0, y1 = max(0, yy.min() - 10), min(mask.shape[1], yy.max() + 10)
+        if np.any(mask):
+            xx, yy = np.nonzero(mask)
+            x0, x1 = max(0, xx.min() - 10), min(mask.shape[0], xx.max() + 10)
+            y0, y1 = max(0, yy.min() - 10), min(mask.shape[1], yy.max() + 10)
+        else:
+            x0, x1, y0, y1 = 0, mask.shape[0], 0, mask.shape[1]
 
         rdict = {'input_img': img, 'Seg': Seg, 'SegAHA': Seg_AHA,
                 'input_crop': img[x0:x1, y0:y1], 'Seg_crop': Seg[x0:x1, y0:y1],
@@ -166,24 +176,20 @@ def process_files_multithreaded(files, option_list, model_ff, common_path, stop_
         if LV.shape[3] > 1: # multi-frame
             ES_t, ED_t = get_ESED(LV)
             rdict['ES_frame_0base'] = ES_t
-            rdict['ED_frame_0base'] = ES_t
+            rdict['ED_frame_0base'] = ED_t
             rdict['Seg_ES'] = Seg[..., ES_t]
             rdict['Seg_ED'] = Seg[..., ED_t]
             rdict['SegAHA_ES'] = Seg_AHA[..., ES_t]
             rdict['SegAHA_ED'] = Seg_AHA[..., ED_t]
-        savemat(f'./output/{name}_pred_{onnx_version}.mat', rdict, do_compression=True)
+        savemat(join(output_path, f'{name}_pred_{onnx_version}.mat'), rdict, do_compression=True)
 
         if option['mat_in_inputdir']:
-            mat_f = option['Filename']
-            mat_f = join(dirname(mat_f), basename(mat_f).split('.')[0] + f'_{onnx_version}.mat')
-            savemat(mat_f, dict, do_compression=True)
+            mat_f = join(dirname(file), f'{stem}_{onnx_version}.mat')
+            savemat(mat_f, rdict, do_compression=True)
 
         if option['nii_in_inputdir']:
-            nii_f = option['Filename']
-            nii_f = join(dirname(nii_f), basename(nii_f).split('.')[0] + f'_{onnx_version}_seg.nii.gz')
-
-            nii_img = nib.Nifti1Image(Seg, affine, header)
-            nib.save(nii_img, nii_f)
+            nii_f = join(dirname(file), f'{stem}_{onnx_version}_seg.nii.gz')
+            io.save_labels(Seg if len(img_ori.shape) == 4 else Seg[..., 0], affine, header, nii_f)
         log_message(GV.log_box, f'{num + 1}/{len(files)}: {basename(file)} finished ......')
         GV.root.after(0, update_mat_listbox)
 
@@ -222,9 +228,10 @@ def on_display_type_change(event):
     global GV
     
     if GV.data is not None:
-        GV.norm_max = np.max(GV.data['input_img'][GV.data['Seg']==1])
+        lv_pixels = GV.data['input_img'][GV.data['Seg'] == 1]
+        GV.norm_max = np.max(lv_pixels) if lv_pixels.size else 0
         if GV.norm_max == 0:
-            GV.norm_max = np.max(GV.data['input_img'])
+            GV.norm_max = np.max(GV.data['input_img']) or 1
         selected_type = GV.display_type_combo.get()
 
         if selected_type == 'edge':

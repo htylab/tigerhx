@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TigerHx</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">TigerHx</div>
+  <div class="group">
+    <button id="btnAddFiles" data-i18n="addFiles"></button>
+    <button id="btnAddFolder" data-i18n="addFolder"></button>
+  </div>
+  <div class="group">
+    <label><span data-i18n="model"></span> <select id="model"></select></label>
+    <button id="btnRun" class="primary"></button>
+    <button id="btnStop" data-i18n="stop"></button>
+  </div>
+  <div class="spacer"></div>
+  <div class="group">
+    <button id="btnSettings" data-i18n="settings"></button>
+    <button id="btnLang"></button>
+  </div>
+</header>
+
+<div id="addPanel" class="panel hidden">
+  <div class="field"><span data-i18n="pathsLabel"></span><textarea id="addPaths" spellcheck="false"></textarea></div>
+  <div class="field"><span data-i18n="include"></span><input type="text" id="addInclude" placeholder="cine"></div>
+  <div class="field"><span data-i18n="exclude"></span><input type="text" id="addExclude" value="mask, _seg, aha17"></div>
+  <button id="btnAddConfirm" class="primary" data-i18n="add"></button>
+  <button id="btnAddCancel" data-i18n="cancel"></button>
+</div>
+
+<div id="settingsPanel" class="panel hidden">
+  <label class="check"><input type="checkbox" data-setting="save_mat"> <span data-i18n="saveMat"></span></label>
+  <label class="check"><input type="checkbox" data-setting="mat_in_inputdir"> <span data-i18n="matInput"></span></label>
+  <label class="check"><input type="checkbox" data-setting="nii_in_inputdir"> <span data-i18n="niiInput"></span></label>
+  <span class="muted"><span data-i18n="workspace"></span>: <span id="workspace" class="mono"></span></span>
+  <button id="btnOpenWs" class="small" data-i18n="openFolder"></button>
+</div>
+
+<main>
+  <section class="case-section">
+    <div class="section-head">
+      <input type="checkbox" id="checkAll" aria-label="select all">
+      <span data-i18n="cases"></span> <span id="caseCount" class="count"></span>
+    </div>
+    <div class="case-list">
+      <table class="cases">
+        <thead><tr><th></th><th data-i18n="colName"></th><th data-i18n="colStatus"></th><th class="num" data-i18n="colApex"></th><th class="num" data-i18n="colChecks"></th></tr></thead>
+        <tbody id="caseBody"></tbody>
+      </table>
+      <div id="caseEmpty" class="empty" data-i18n="emptyCases"></div>
+    </div>
+    <div class="case-foot">
+      <button id="btnRemove" class="small" data-i18n="remove"></button>
+      <button id="btnOpenCase" class="small" data-i18n="openCaseFolder"></button>
+    </div>
+  </section>
+
+  <section class="viewer">
+    <div class="viewer-tools">
+      <span class="seg-buttons" id="viewMode">
+        <button data-v="single" data-i18n="viewSingle"></button>
+        <button data-v="mosaic" data-i18n="viewMosaic"></button>
+      </span>
+      <span class="seg-buttons" id="zoomMode">
+        <button data-v="heart" data-i18n="zoomHeart"></button>
+        <button data-v="full" data-i18n="zoomFull"></button>
+      </span>
+      <span class="seg-buttons" id="overlayMode">
+        <button data-v="seg" data-i18n="ovSeg"></button>
+        <button data-v="edge" data-i18n="ovEdge"></button>
+        <button data-v="aha" data-i18n="ovAha"></button>
+        <button data-v="none" data-i18n="ovNone"></button>
+      </span>
+      <label class="check"><span data-i18n="opacity"></span>
+        <input type="range" id="opacity" min="0" max="1" step="0.05" value="0.45"></label>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="gl"></canvas>
+      <canvas id="ov" aria-hidden="true"></canvas>
+      <div id="canvasHint" class="canvas-hint" data-i18n="hintSelect"></div>
+      <div id="readout" class="readout hidden"></div>
+      <div id="legend" class="legend-overlay hidden"></div>
+    </div>
+    <div class="viewer-bar">
+      <button id="btnPlay" class="small" aria-label="play">▶</button>
+      <span data-i18n="frame"></span>
+      <input type="range" id="frame" min="0" max="0" step="1" value="0">
+      <span id="frameText" class="mono"></span>
+      <button id="btnED" class="small">ED</button>
+      <button id="btnES" class="small">ES</button>
+      <span class="muted">|</span>
+      <span data-i18n="slice"></span>
+      <button id="btnSlicePrev" class="small" aria-label="previous slice">◀</button>
+      <span id="sliceText" class="mono"></span>
+      <button id="btnSliceNext" class="small" aria-label="next slice">▶</button>
+      <span id="levelTag" class="tag hidden"></span>
+    </div>
+    <div class="viewer-bar apex-bar">
+      <span data-i18n="apexStart"></span>
+      <span id="apexValue" class="apex-value">–</span>
+      <span id="apexTag" class="tag hidden"></span>
+      <button id="btnSetApex" class="small" data-i18n="setApex"></button>
+      <button id="btnConfirmApex" class="small" data-i18n="confirmApex"></button>
+      <label><span data-i18n="sliceOrder"></span>
+        <select id="sliceOrder">
+          <option value="1" data-i18n="baseFirst"></option>
+          <option value="0" data-i18n="apexFirst"></option>
+        </select></label>
+    </div>
+  </section>
+
+  <section class="results">
+    <div class="section-head" data-i18n="results"></div>
+    <div class="body" id="results">
+      <div class="empty" data-i18n="noResults"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="statusbar">
+  <span id="statusMain"></span>
+  <span id="statusMsg"></span>
+</footer>
+
+<script src="/static/vendor/niivue.umd.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

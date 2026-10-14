@@ -35,14 +35,10 @@ def write_file(input_file, output_dir, mask, postfix='pred'):
     print(input_nib.shape)
     print(mask.shape)
     result = nib.Nifti1Image(mask.astype(np.uint8), input_nib.affine, input_nib.header)
- 
+    result.set_data_dtype(np.uint8)
+    result.header.set_slope_inter(1, 0)
 
     nib.save(result, output_file)
-
-    result = nib.Nifti1Image(input_nib.get_fdata().astype(int), input_nib.affine, input_nib.header)
- 
-
-    nib.save(result, output_file.replace('_hx', '_new'))
 
 
     return output_file
@@ -72,7 +68,7 @@ def run(argstring, input, output=None, model=None):
     args.input = input
     args.output = output
     args.model = model
-    run_args(args)
+    return run_args(args)
 
 def run_args(args):
 
@@ -105,7 +101,6 @@ def run_args(args):
         input_data = nib.load(f).get_fdata()
         mask_pred = lib_hx.run(
             model_name, input_data, GPU=args.gpu)
-        mask_pred = lib_hx.post(mask_pred)
         output_file = write_file(
              f, output_dir, mask_pred, postfix='hx')
 
@@ -124,7 +119,6 @@ def predict(data, model='cine4d_v0003_xy_mms12acdc.onnx', GPU=False):
     # for single call from python package
     model_name = lib_tool.get_model(model)
     mask_pred = lib_hx.run(model_name, data, GPU=GPU)
-    mask_pred = lib_hx.post(mask_pred)
 
     return mask_pred
 

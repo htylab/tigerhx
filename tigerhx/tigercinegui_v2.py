@@ -11,7 +11,9 @@ from os.path import join, isfile, basename, dirname
 from skimage.transform import resize
 import numpy as np
 import glob
+import nibabel as nib
 from scipy.io import loadmat, savemat
+from tigerhx.core import io
 from matplotlib.colors import ListedColormap
 
 # Determine if the application is a script file or frozen exe
@@ -244,7 +246,7 @@ class TigerCineGUI(tk.Tk):
         files, options, common_path = guitool.run_program_gui_interaction(selected_file, self.log_box, self)
         
         if files:
-             threading.Thread(target=self.process_files_multithreaded,
+             threading.Thread(target=self.process_files_multithreaded, daemon=True,
                              args=(files, options, model_ff, common_path)).start()
 
     def on_stop(self):
@@ -364,17 +366,16 @@ class TigerCineGUI(tk.Tk):
                     'SegAHA_ES': Seg_AHA[..., ES_t], 'SegAHA_ED': Seg_AHA[..., ED_t]
                 })
             
-            savemat(f'./output/{name}_pred_{onnx_version}.mat', rdict, do_compression=True)
+            savemat(join(output_path, f'{name}_pred_{onnx_version}.mat'), rdict, do_compression=True)
 
             # Optional extra saves
             if option.get('mat_in_inputdir'):
-                mat_f = join(dirname(option['Filename']), basename(option['Filename']).split('.')[0] + f'_{onnx_version}.mat')
+                mat_f = join(dirname(file), f'{io.strip_nii_ext(file)}_{onnx_version}.mat')
                 savemat(mat_f, rdict, do_compression=True)
 
             if option.get('nii_in_inputdir'):
-                nii_f = join(dirname(option['Filename']), basename(option['Filename']).split('.')[0] + f'_{onnx_version}_seg.nii.gz')
-                nii_img = nib.Nifti1Image(Seg, affine, header)
-                nib.save(nii_img, nii_f)
+                nii_f = join(dirname(file), f'{io.strip_nii_ext(file)}_{onnx_version}_seg.nii.gz')
+                io.save_labels(Seg if len(img_ori.shape) == 4 else Seg[..., 0], affine, header, nii_f)
 
             self.log_message(f'{basename(file)} finished.')
             self.after(0, self.update_mat_listbox)
