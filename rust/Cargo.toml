@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["tigerhx-core"]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+license = "MIT"
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true
