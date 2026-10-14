@@ -50,6 +50,19 @@ def client(url):
     return opener, call, base
 
 
+def test_native_api_exposes_only_the_dialogs():
+    # pywebview hands every public attribute of js_api to the page and walks
+    # into nested objects; a public window led into WinForms objects whose
+    # properties never end (Bounds.Empty.Empty...), so only methods may be public.
+    import inspect
+    from tigerhx.webgui.app import NativeDialogs
+    api = NativeDialogs()
+    api._window = object()
+    public = {n: getattr(api, n) for n in dir(api) if not n.startswith('_')}
+    assert set(public) == {'pick_files', 'pick_folder'}
+    assert all(inspect.ismethod(f) for f in public.values())
+
+
 def test_auth_required(server):
     app, url = server
     base = url.split('/?')[0]

@@ -15,15 +15,20 @@ from tigerhx.webgui.server import App, serve
 
 
 class NativeDialogs:
-    """File dialogs exposed to the page as window.pywebview.api.*"""
+    """File dialogs exposed to the page as window.pywebview.api.*
 
-    window = None
+    pywebview exposes every public attribute of this object to the page and
+    walks into nested objects, so the window is kept private: walking into
+    window.native (a WinForms form) recursed without end on Windows.
+    """
+
+    _window = None
 
     def _dialog(self, kind, **kw):
         import webview
         fd = getattr(webview, 'FileDialog', None)
         dialog = getattr(fd, kind) if fd else getattr(webview, f'{kind}_DIALOG')
-        return list(self.window.create_file_dialog(dialog, **kw) or [])
+        return list(self._window.create_file_dialog(dialog, **kw) or [])
 
     def pick_files(self):
         return self._dialog('OPEN', allow_multiple=True,
@@ -59,8 +64,8 @@ def main(argv=None):
             webview = None
         if webview is not None:
             api = NativeDialogs()
-            api.window = webview.create_window('TigerHx', url, js_api=api,
-                                               width=1440, height=900, min_size=(1000, 640))
+            api._window = webview.create_window('TigerHx', url, js_api=api,
+                                                width=1440, height=900, min_size=(1000, 640))
             webview.start()
             app.stop()
             server.shutdown()
