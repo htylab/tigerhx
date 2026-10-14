@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import io
+import os
 import re
 from os.path import basename
 
@@ -137,8 +138,13 @@ def legacy_result(img, seg, apex_slice, base_first, model_name, voxel_size, ed=N
 
 
 def save_mat(path, rdict):
+    """Written to a temporary file first, so an interrupted write (or a
+    reader during a rewrite) never sees a truncated .mat."""
     from scipy.io import savemat
-    savemat(path, rdict, do_compression=True)
+    tmp = f'{path}.tmp'
+    with open(tmp, 'wb') as f:
+        savemat(f, rdict, do_compression=True)
+    os.replace(tmp, path)
 
 
 CASE_COLUMNS = ['Filename', 'Apex', 'mat_in_inputdir', 'nii_in_inputdir']

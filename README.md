@@ -106,6 +106,11 @@ optimistically on it.
 (inference, AHA, metrics, file I/O, workspace). The tests use a synthetic
 phantom and a tiny ONNX model, so they need no network or real data.
 
+The Windows executables are built by `.github/workflows/gui-app.yml`. The
+web GUI build leaves out modules it does not use (most of SciPy, matplotlib,
+Pillow, Tcl/Tk), and `tools/smoke_exe.py` then runs the built `.exe` on a
+synthetic case, so a module that is needed but left out fails the build.
+
 
 # Label names:
 

@@ -22,8 +22,24 @@ jobs:
       fail-fast: false
       matrix:
         os: ['windows-latest']
-        #os: ['windows-latest']
         py: ['tigercinegui', 'tigerhxgui']
+        include:
+          # the Tk GUI draws with matplotlib and resizes with scikit-image
+          - py: tigercinegui
+            deps: onnxruntime scikit-image matplotlib certifi
+            excludes: ''
+          # the web GUI only needs numpy, nibabel, onnxruntime, scipy.ndimage/io
+          # (scipy.io.matlab pulls in scipy.sparse) and pywebview; leaving out the
+          # rest of scipy also drops matplotlib, Pillow and Tcl/Tk that scipy.stats
+          # would otherwise bring in.
+          - py: tigerhxgui
+            deps: onnxruntime certifi pywebview
+            excludes: >-
+              matplotlib mpl_toolkits PIL tkinter _tkinter skimage IPython pandas sympy pytest
+              setuptools pkg_resources distutils
+              scipy.stats scipy.optimize scipy.integrate scipy.interpolate scipy.spatial
+              scipy.signal scipy.odr scipy.cluster scipy.datasets scipy.misc scipy.fftpack
+              scipy.constants scipy.fft scipy.sparse.linalg scipy.sparse.csgraph
 
     steps:
     - uses: actions/checkout@v4
@@ -33,16 +49,23 @@ jobs:
         python-version: "3.9"
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip        
+        python -m pip install --upgrade pip
         pip install .
-        pip install pyinstaller onnxruntime scikit-image matplotlib certifi pywebview
-    - name: Run Pyinstaller 1
+        pip install pyinstaller ${{ matrix.deps }}
+    - name: Run PyInstaller
       if: matrix.os == 'windows-latest'
+      shell: bash
       run: |
+        EXCLUDES=""
+        for m in ${{ matrix.excludes }}; do EXCLUDES="$EXCLUDES --exclude-module $m"; done
+        pyinstaller -c -p ./tigerhx --collect-data tigerhx --add-data "./tigerhx/exe/onnxruntime_providers_shared.dll;onnxruntime/capi" $EXCLUDES -F ./tigerhx/${{ matrix.py }}.py
+        ls -l dist
+    - name: Smoke test the executable
+      if: matrix.py == 'tigerhxgui'
+      run: |
+        pip install onnx
+        python tools/smoke_exe.py dist/tigerhxgui.exe
 
-        pyinstaller -c -p ./tigerhx --collect-data tigerhx --add-data "./tigerhx/exe/onnxruntime_providers_shared.dll;onnxruntime/capi" -F ./tigerhx/${{ matrix.py }}.py
-
-        
     - uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.py }}-${{ matrix.os }}
