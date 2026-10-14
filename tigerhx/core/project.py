@@ -32,6 +32,24 @@ def empty_excluded():
     return {ph: {ch: [] for ch in CHAMBERS} for ph in PHASES}
 
 
+def normalize_slices(d):
+    out = empty_excluded()
+    for ph in PHASES:
+        for ch in CHAMBERS:
+            out[ph][ch] = sorted(set(((d or {}).get(ph) or {}).get(ch) or []))
+    return out
+
+
+def effective_excluded(case):
+    """(user exclusions + automatic ones) minus slices the user kept."""
+    out = empty_excluded()
+    for ph in PHASES:
+        for ch in CHAMBERS:
+            out[ph][ch] = sorted((set(case.excluded[ph][ch]) | set(case.auto_excluded[ph][ch]))
+                                 - set(case.kept[ph][ch]))
+    return out
+
+
 @dataclass
 class Case:
     id: str
@@ -50,7 +68,10 @@ class Case:
     apex_confirmed: bool = False
     ed_manual: int = None      # user-set ED/ES frames override the automatic ones
     es_manual: int = None
-    excluded: dict = field(default_factory=empty_excluded)  # slices not counted
+    excluded: dict = field(default_factory=empty_excluded)       # user: not counted
+    auto_excluded: dict = field(default_factory=empty_excluded)  # automatic (metrics.auto_exclusions)
+    kept: dict = field(default_factory=empty_excluded)           # user: count despite auto
+    excluded_effective: dict = field(default_factory=empty_excluded)
     checks: list = None        # slices flagged for review (metrics.slice_checks)
     levels: list = None
     metrics: dict = None
@@ -61,11 +82,8 @@ class Case:
     def from_dict(cls, d):
         names = {f.name for f in fields(cls)}
         c = cls(**{k: v for k, v in d.items() if k in names})
-        excluded = empty_excluded()
-        for ph in PHASES:
-            for ch in CHAMBERS:
-                excluded[ph][ch] = sorted(set(((c.excluded or {}).get(ph) or {}).get(ch) or []))
-        c.excluded = excluded
+        for name in ('excluded', 'auto_excluded', 'kept', 'excluded_effective'):
+            setattr(c, name, normalize_slices(getattr(c, name)))
         return c
 
     @property
@@ -171,7 +189,7 @@ class Project:
         header = ['Case', 'Filename', 'Status', 'Model', 'ED_frame_0base', 'ED_source',
                   'ES_frame_0base', 'ES_source', 'Apex_slice_0base', 'Apex_confirmed',
                   'Slice_order'] + [f'Excluded_{ph}_{ch}' for ph in PHASES for ch in CHAMBERS] \
-            + METRIC_KEYS
+            + ['Auto_excluded'] + METRIC_KEYS
         rows = []
         with self.lock:
             rule = self.settings.get('ed_rule', 'max_volume')
@@ -179,12 +197,15 @@ class Project:
                 if not c.metrics:
                     continue
                 order = '' if c.base_first is None else ('base->apex' if c.base_first else 'apex->base')
-                excluded = [' '.join(map(str, c.excluded[ph][ch])) for ph in PHASES for ch in CHAMBERS]
+                eff = effective_excluded(c)
+                excluded = [' '.join(map(str, eff[ph][ch])) for ph in PHASES for ch in CHAMBERS]
+                auto = '; '.join(f'{ph} {ch} {z}' for ph in PHASES for ch in CHAMBERS
+                                 for z in c.auto_excluded[ph][ch] if z in eff[ph][ch])
                 rows.append([c.name, c.path, c.status, c.model,
                              c.ed, 'manual' if c.ed_manual is not None else rule,
                              c.es, 'manual' if c.es_manual is not None else 'min_volume',
                              c.apex_slice, int(bool(c.apex_confirmed)), order]
-                            + excluded
+                            + excluded + [auto]
                             + ['' if c.metrics.get(k) is None else c.metrics[k] for k in METRIC_KEYS])
         write_csv(path, header, rows)
         return path

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
+from scipy import ndimage
 
 from tigerhx.core.aha import LV, MYO, RV
 
@@ -82,43 +83,86 @@ def compute_metrics(seg, zooms, ed, es, excluded=None):
     return {k: (None if val is None else round(float(val), 2)) for k, val in m.items()}
 
 
-def slice_checks(seg, ed, es, base_first=True, excluded=None, min_voxels=100):
+def _pixel_mm2(zooms):
+    return float(zooms[0]) * float(zooms[1]) if zooms else 1.0
+
+
+def _areas(seg, label, frame, px):
+    """Area (mm^2) of a label on every slice of one frame."""
+    return (seg[..., frame] == label).sum(axis=(0, 1)) * px
+
+
+def lv_ring_coverage(slice_mask):
+    """Fraction of the LV-blood border that touches myocardium (None for a
+    tiny LV).  Close to 1 inside the ventricle; an open ring at the base
+    suggests the slice is already atrium."""
+    lv = slice_mask == LV
+    if lv.sum() < 20:
+        return None
+    edge = lv & ~ndimage.binary_erosion(lv)
+    return float((edge & ndimage.binary_dilation(slice_mask == MYO)).sum() / edge.sum())
+
+
+def auto_exclusions(seg, ed, es, zooms=None, factor=2.0, margin_mm2=200.0):
+    """Slices left out automatically: a cavity at ES more than `factor` times
+    its ED area plus `margin_mm2` is not that ventricle (typically a structure
+    below the apex).  Validated on ACDC: it fired only on such slices."""
+    out = {'ED': {'LV': [], 'RV': []}, 'ES': {'LV': [], 'RV': []}}
+    if seg.shape[3] < 2 or ed == es:
+        return out
+    px = _pixel_mm2(zooms)
+    for chamber, label in CHAMBER_LABELS.items():
+        a_ed, a_es = _areas(seg, label, ed, px), _areas(seg, label, es, px)
+        out['ES'][chamber] = [int(z) for z in np.nonzero(a_es > factor * a_ed + margin_mm2)[0]]
+    return out
+
+
+def slice_checks(seg, ed, es, base_first=True, excluded=None, zooms=None):
     """Slices worth a look before trusting ED/ES volumes.
 
-    'es_gt_ed': a cavity is clearly larger at ES than at ED on that slice
-                (often a structure outside the ventricle near the apex).
-    'gap':      a cavity is (almost) missing on a slice although both
-                neighbours have it.
-    'basal':    reminder to check that the basal-most slice with a cavity at
-                ES is still ventricle and not atrium (the commonest source of
-                ESV error, which these numbers alone cannot detect).
-    Neighbours the user has excluded do not count as evidence of a gap.
+    'es_gt_ed':  a cavity is clearly larger at ES than at ED on that slice
+                 (often a structure outside the ventricle near the apex).
+    'gap':       a cavity is (almost) missing on a slice although both
+                 neighbours have it.
+    'open_ring': the basal-most LV slice at ES is poorly enclosed by
+                 myocardium, so it is probably atrium.
+    'basal':     reminder to check that the basal-most slice with a cavity at
+                 ES is still ventricle (the commonest source of ESV error).
+    Neighbours that are excluded do not count as evidence of a gap.
     """
     excluded = excluded or {}
     checks = []
     if seg.shape[3] < 2 or ed == es:
         return checks
     nz = seg.shape[2]
+    px = _pixel_mm2(zooms)
+    min_area = 100.0  # mm^2
     for chamber, label in CHAMBER_LABELS.items():
-        a = {ph: (seg[..., f] == label).sum(axis=(0, 1)) for ph, f in (('ED', ed), ('ES', es))}
+        a = {'ED': _areas(seg, label, ed, px), 'ES': _areas(seg, label, es, px)}
         for z in range(nz):
             if a['ES'][z] > 1.1 * a['ED'][z] + 50:
                 checks.append({'kind': 'es_gt_ed', 'phase': 'ES', 'chamber': chamber, 'slice': z,
-                               'ed': int(a['ED'][z]), 'es': int(a['ES'][z])})
+                               'ed': int(round(a['ED'][z])), 'es': int(round(a['ES'][z]))})
         for ph in ('ED', 'ES'):
             skip = set((excluded.get(ph) or {}).get(chamber) or ())
             for z in range(1, nz - 1):
                 if skip & {z - 1, z + 1}:
                     continue
                 lo = min(a[ph][z - 1], a[ph][z + 1])
-                if lo > min_voxels and a[ph][z] < 0.2 * lo:
+                if lo > min_area and a[ph][z] < 0.2 * lo:
                     checks.append({'kind': 'gap', 'phase': ph, 'chamber': chamber, 'slice': z,
-                                   'area': int(a[ph][z]), 'neighbours': int(lo)})
+                                   'area': int(round(a[ph][z])), 'neighbours': int(round(lo))})
         order = range(nz) if base_first else range(nz - 1, -1, -1)
-        basal = next((z for z in order if a['ES'][z] > min_voxels), None)
-        if basal is not None:
+        basal = next((z for z in order if a['ES'][z] > min_area), None)
+        if basal is None:
+            continue
+        cov = lv_ring_coverage(seg[:, :, basal, es]) if chamber == 'LV' else None
+        if cov is not None and cov < 0.75:
+            checks.append({'kind': 'open_ring', 'phase': 'ES', 'chamber': chamber, 'slice': basal,
+                           'coverage': round(cov, 2)})
+        else:
             checks.append({'kind': 'basal', 'phase': 'ES', 'chamber': chamber, 'slice': basal,
-                           'es': int(a['ES'][basal])})
+                           'es': int(round(a['ES'][basal]))})
     return checks
 
 

@@ -16,6 +16,7 @@ from tigerhx.core import aha, metrics
 from tigerhx.core.inference import model_version, segment
 from tigerhx.core.io import (legacy_result, load_nifti, save_labels, save_mat,
                              strip_nii_ext)
+from tigerhx.core.project import effective_excluded, normalize_slices
 
 
 def _seg_path(project, case):
@@ -64,7 +65,8 @@ def analyze_case(project, case, seg=None):
             es = case.es_manual
         base_first = case.base_first
         apex = case.apex_slice
-        excluded = {ph: {ch: list(v) for ch, v in d.items()} for ph, d in case.excluded.items()}
+        user_excluded = normalize_slices(case.excluded)
+        kept = normalize_slices(case.kept)
     if base_first is None:
         base_first = aha.detect_base_first(seg, ed)
     if apex is None:
@@ -79,8 +81,12 @@ def analyze_case(project, case, seg=None):
         case.base_first, case.apex_slice = base_first, apex
         levels = aha.slice_levels(seg, ed, apex, base_first)
         case.levels = [levels[z] for z in range(seg.shape[2])]
+        case.auto_excluded = metrics.auto_exclusions(seg, ed, es, zooms)
+        case.excluded, case.kept = user_excluded, kept
+        excluded = effective_excluded(case)
+        case.excluded_effective = excluded
         case.metrics = metrics.compute_metrics(seg, zooms, ed, es, excluded)
-        case.checks = metrics.slice_checks(seg, ed, es, base_first, excluded)
+        case.checks = metrics.slice_checks(seg, ed, es, base_first, excluded, zooms)
         case.curves = {k: [round(v, 2) for v in vals]
                        for k, vals in metrics.volume_curves(seg, zooms).items()}
     return a17
@@ -121,13 +127,19 @@ def set_excluded(project, case, phase, chamber, slice_index, exclude=True):
     nz = case.shape[2] if case.shape else 0
     if not 0 <= int(slice_index) < nz:
         raise ValueError(f'slice must be within 0..{nz - 1}')
+    z = int(slice_index)
     with project.lock:
-        current = set(case.excluded[phase][chamber])
+        user, kept = set(case.excluded[phase][chamber]), set(case.kept[phase][chamber])
+        auto = z in case.auto_excluded[phase][chamber]
         if exclude:
-            current.add(int(slice_index))
+            kept.discard(z)
+            if not auto:
+                user.add(z)
         else:
-            current.discard(int(slice_index))
-        case.excluded[phase][chamber] = sorted(current)
+            user.discard(z)
+            if auto:
+                kept.add(z)
+        case.excluded[phase][chamber], case.kept[phase][chamber] = sorted(user), sorted(kept)
     analyze_case(project, case)
 
 

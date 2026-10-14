@@ -52,9 +52,13 @@ Workflow:
    slices out of the LV or RV volume, e.g. a basal slice that is already
    atrium at ES or a slice below the apex the model labelled by mistake.
    The panel lists slices worth checking: a cavity larger at ES than at ED,
-   a cavity missing between two slices that have it, and the basal-most
-   slice at ES. *Show* jumps to the frame and slice; cases with open
-   warnings are marked ⚠ in the case list. Metrics update immediately.
+   a cavity missing between two slices that have it, a basal-most LV at ES
+   that is poorly enclosed by myocardium (probably atrium), and a reminder
+   for the basal-most slice at ES. *Show* jumps to the frame and slice;
+   cases with open warnings are marked ⚠ in the case list. Slices whose
+   cavity at ES is more than twice its ED area plus 200 mm² (typically a
+   structure below the apex) are left out automatically and marked *auto*;
+   × counts them again. Metrics update immediately.
 5. **Export metrics CSV** – LV/RV EDV, ESV, SV, EF and LV mass for all cases,
    with the ED/ES frames, how they were chosen and the excluded slices.
 
@@ -72,6 +76,12 @@ Notes on the analysis:
   ED/ES frames. LV mass = myocardium volume at ED × 1.05 g/mL. Volumes use the
   voxel size from the NIfTI header (slice spacing included); EF does not
   depend on it. The volume–time curves always include every slice.
+* Post-processing was chosen on 15 ACDC cases (v0006, labelled ED/ES frames):
+  the automatic ES-outlier exclusion lowered the LV EF mean absolute error
+  from 4.1 to 3.1 points (worst case 21.5 → 8.4) and fired only on slices the
+  experts had left empty; acting on the open-ring warnings lowered it further
+  to 2.2. Hole filling and optical-flow temporal voting were tested and did
+  not help, so they are not used.
 * Trigger times are not needed for EF. Cardiac output and time-based indices
   (filling rates) would need the heart rate or trigger times, which NIfTI
   files usually do not carry.
@@ -93,7 +103,8 @@ around the LV) and compares models with the expert ED/ES labels:
     python tools/eval_acdc.py --per-group 4 --ed-rule first_frame --out acdc.csv
 
 It reports Dice per structure, LV/RV EF error, EDV and mass error and whether
-the detected ED/ES frames match the labelled ones. Models trained on ACDC
+the detected ED/ES frames match the labelled ones. Like the GUI it applies the
+automatic ES-outlier exclusion (`--no-auto-exclude` to count every slice). Models trained on ACDC
 (e.g. v0003 *mms12acdc*) score optimistically on it.
 
 ## Development

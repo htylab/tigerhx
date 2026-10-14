@@ -57,7 +57,7 @@ def dice(a, b):
     return float(2 * (a & b).sum() / s) if s else float('nan')
 
 
-def evaluate(pid, info, data_dir, model_paths, ed_rule, use_gt_frames):
+def evaluate(pid, info, data_dir, model_paths, ed_rule, use_gt_frames, auto_exclude=True):
     files = {p: fetch(f'train/{pid}/{pid}_{p}.nii.gz', data_dir) for p in PARTS}
     img = nib.load(files['sax_t'])
     data = img.get_fdata(dtype=np.float32)
@@ -72,7 +72,8 @@ def evaluate(pid, info, data_dir, model_paths, ed_rule, use_gt_frames):
     for mp in model_paths:
         pred = segment(data, mp)
         ed, es = (gt_ed_f, gt_es_f) if use_gt_frames else metrics.find_ed_es(pred, ed_rule)
-        m = metrics.compute_metrics(pred, zooms, ed, es)
+        auto = metrics.auto_exclusions(pred, ed, es, zooms) if auto_exclude else None
+        m = metrics.compute_metrics(pred, zooms, ed, es, auto)
         cyc = lambda a, b: min(abs(a - b), nt - abs(a - b))  # noqa: E731
         row = {'case': pid, 'group': info['pathology'], 'model': os.path.basename(mp),
                'frames': nt, 'ED_gt': gt_ed_f, 'ED_pred': ed, 'ES_gt': gt_es_f, 'ES_pred': es,
@@ -119,6 +120,8 @@ def main(argv=None):
     ap.add_argument('--ed-rule', choices=metrics.ED_RULES, default='max_volume')
     ap.add_argument('--gt-frames', action='store_true',
                     help='use the labelled ED/ES frames (segmentation error only)')
+    ap.add_argument('--no-auto-exclude', action='store_true',
+                    help='count every slice (the GUI leaves out ES outlier slices by default)')
     ap.add_argument('--out', help='per-case CSV')
     args = ap.parse_args(argv)
 
@@ -128,7 +131,8 @@ def main(argv=None):
     rows = []
     for pid in select_cases(info, args.cases, args.per_group):
         print(f'{pid} ({info[pid]["pathology"]}) ...', flush=True)
-        rows += evaluate(pid, info[pid], args.data_dir, model_paths, args.ed_rule, args.gt_frames)
+        rows += evaluate(pid, info[pid], args.data_dir, model_paths, args.ed_rule, args.gt_frames,
+                         not args.no_auto_exclude)
     if args.out:
         with open(args.out, 'w', newline='', encoding='utf-8') as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0]))

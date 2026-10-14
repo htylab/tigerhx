@@ -152,3 +152,26 @@ def test_phase_and_basal_choices(tmp_path, model, cine):
     assert again.excluded == {'ED': {'LV': [0, 7], 'RV': []}, 'ES': {'LV': [], 'RV': []}}
     row = io.read_csv(proj.export_metrics())[0]
     assert row['Excluded_ED_LV'] == '0 7' and row['ED_source'] == 'first_frame'
+
+
+def test_auto_exclusion_can_be_overridden(tmp_path, model):
+    seg = phantom()
+    seg[30:60, 30:60, 7, 3] = 1  # bogus LV below the apex at ES only
+    path = tmp_path / 'bad.nii.gz'
+    nib.save(nib.Nifti1Image(phantom_image(seg).astype(np.int16), np.diag([1.5, 1.5, 8, 1])), str(path))
+    proj = Project(str(tmp_path / 'ws'))
+    proj.settings.update(save_mat=False)
+    case = proj.add_paths([str(path)])[0]
+    pipeline.segment_case(proj, case, model)
+    pipeline.set_phases(proj, case, ed=0, es=3)  # the bogus region shifts the automatic ED/ES
+    assert case.auto_excluded['ES']['LV'] == [7] and case.excluded_effective['ES']['LV'] == [7]
+    ef_auto = case.metrics['LV_EF_pct']
+
+    pipeline.set_excluded(proj, case, 'ES', 'LV', 7, exclude=False)   # user: count it
+    assert case.kept['ES']['LV'] == [7] and case.excluded_effective['ES']['LV'] == []
+    assert case.metrics['LV_EF_pct'] < ef_auto
+    pipeline.set_excluded(proj, case, 'ES', 'LV', 7, exclude=True)    # back to automatic
+    assert case.kept['ES']['LV'] == [] and case.excluded['ES']['LV'] == []
+    assert case.metrics['LV_EF_pct'] == ef_auto
+    row = io.read_csv(proj.export_metrics())[0]
+    assert row['Excluded_ES_LV'] == '7' and row['Auto_excluded'] == 'ES LV 7'

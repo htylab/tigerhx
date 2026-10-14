@@ -40,6 +40,9 @@ const I18N = {
     chkBigger: (z, ch, es, ed) => `slice ${z}：ES 的 ${ch} 比 ED 大（${es} vs ${ed} voxels），可能標到心室外的結構`,
     chkGap: (z, ph, ch, a, n) => `slice ${z}：${ph} 的 ${ch} 疑似漏標（${a} voxels，鄰近 ${n}）`,
     chkBasal: (z, ch) => `確認 ES 最基底的 ${ch}（slice ${z}）是否已進入心房；是的話不計入`,
+    chkRing: (z, p) => `slice ${z}：ES 最基底的 LV 只有 ${p}% 被心肌包住，可能已是心房；建議不計入`,
+    autoTag: '自動',
+    autoNote: '標「自動」的 slice 是 ES 時心室腔比 ED 大很多（多半是心尖下方的結構），已自動不計入；按 × 可恢復。',
     edRule: 'ED 自動判定', edRuleMax: '最大 LV 容積', edRuleFirst: '第一個 frame（R 波觸發）',
     rule_max_volume: '最大容積', rule_first_frame: '第一個 frame', rule_min: '最小容積',
     excluded: (ph, ch) => `${ph} 不計入 ${ch}`, curveNote: '曲線包含所有 slice，未套用排除設定。',
@@ -83,6 +86,9 @@ const I18N = {
     chkBigger: (z, ch, es, ed) => `slice ${z}: ${ch} larger at ES than at ED (${es} vs ${ed} voxels), possibly a structure outside the ventricle`,
     chkGap: (z, ph, ch, a, n) => `slice ${z}: ${ch} possibly missed at ${ph} (${a} voxels, neighbours ${n})`,
     chkBasal: (z, ch) => `Check whether the basal-most ${ch} slice at ES (slice ${z}) is already atrium; if so, don't count it`,
+    chkRing: (z, p) => `slice ${z}: only ${p}% of the basal-most LV at ES is enclosed by myocardium, probably atrium; consider not counting it`,
+    autoTag: 'auto',
+    autoNote: 'Slices marked auto have a cavity far larger at ES than at ED (usually a structure below the apex) and are left out automatically; × counts them again.',
     edRule: 'Automatic ED', edRuleMax: 'largest LV volume', edRuleFirst: 'first frame (R-wave triggered)',
     rule_max_volume: 'max volume', rule_first_frame: 'first frame', rule_min: 'min volume',
     excluded: (ph, ch) => `${ch} not counted at ${ph}`, curveNote: 'Curves include all slices; exclusions are not applied.',
@@ -303,7 +309,7 @@ function renderViewerBars(c) {
 // ---------------------------------------------------------------- results
 function renderResults(c) {
   const box = $('results');
-  const key = c ? JSON.stringify([c.id, c.status, c.metrics, c.ed, c.es, c.excluded, lang, c.message]) : 'none';
+  const key = c ? JSON.stringify([c.id, c.status, c.metrics, c.ed, c.es, c.excluded_effective, lang, c.message]) : 'none';
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   if (!c) { box.innerHTML = `<div class="empty">${esc(t('noResults'))}</div>`; return; }
@@ -345,21 +351,25 @@ function renderResults(c) {
   if (multi) { drawChart(c); renderCalib(c, true); }
 }
 
-const hasExclusions = c => ['ED', 'ES'].some(ph => ['LV', 'RV'].some(ch => c.excluded[ph][ch].length));
-const isExcluded = (c, phase, chamber, k) => !!(c.excluded && c.excluded[phase][chamber].includes(k));
+const hasExclusions = c => ['ED', 'ES'].some(ph => ['LV', 'RV'].some(ch => c.excluded_effective[ph][ch].length));
+const isExcluded = (c, phase, chamber, k) => !!(c.excluded_effective && c.excluded_effective[phase][chamber].includes(k));
+const isAuto = (c, phase, chamber, k) => !!(c.auto_excluded && c.auto_excluded[phase][chamber].includes(k));
 const phaseOfFrame = c => (S.frame === c.ed ? 'ED' : S.frame === c.es ? 'ES' : null);
 const openChecks = c => (c.checks || []).filter(k => k.kind !== 'basal' && !isExcluded(c, k.phase, k.chamber, k.slice));
+const ringPct = v => Math.round(v * 100);
+const hasAuto = c => ['ED', 'ES'].some(ph => ['LV', 'RV'].some(ch => c.auto_excluded[ph][ch].some(z => isExcluded(c, ph, ch, z))));
 
 function checkText(k) {
   if (k.kind === 'es_gt_ed') return t('chkBigger', k.slice, k.chamber, k.es, k.ed);
   if (k.kind === 'gap') return t('chkGap', k.slice, k.phase, k.chamber, k.area, k.neighbours);
+  if (k.kind === 'open_ring') return t('chkRing', k.slice, ringPct(k.coverage));
   return t('chkBasal', k.slice, k.chamber);
 }
 
 function renderCalib(c, force = false) {
   const box = $('calib');
   if (!box || !isSegmented(c) || c.shape[3] < 2) return;
-  const key = JSON.stringify([c.id, c.ed, c.es, c.ed_manual, c.es_manual, c.excluded, c.checks, S.frame, S.slice,
+  const key = JSON.stringify([c.id, c.ed, c.es, c.ed_manual, c.es_manual, c.excluded_effective, c.checks, S.frame, S.slice,
     lang, S.state.settings.ed_rule]);
   if (!force && box.dataset.key === key) return;
   box.dataset.key = key;
@@ -383,8 +393,8 @@ function renderCalib(c, force = false) {
       <button class="small" data-goto="${c.es},${k ?? ''}">ES</button></div>`;
   }
 
-  const lists = ['ED', 'ES'].map(ph => ['LV', 'RV'].map(ch => c.excluded[ph][ch].map(z =>
-    `<span class="tag ok">${ph} ${ch} · slice ${z}
+  const lists = ['ED', 'ES'].map(ph => ['LV', 'RV'].map(ch => c.excluded_effective[ph][ch].map(z =>
+    `<span class="tag ok">${ph} ${ch} · slice ${z}${isAuto(c, ph, ch, z) ? ` · ${esc(t('autoTag'))}` : ''}
       <button class="chip-x" data-exclude="${ph},${ch},${z},0" title="${esc(t('countAgain', ch))}">×</button></span>`
   ).join(' ')).join(' ')).join(' ').trim();
 
@@ -410,6 +420,7 @@ function renderCalib(c, force = false) {
     <div class="sub-title">${esc(t('exclTitle'))}</div>
     ${toggles}
     ${lists ? `<div class="excl-list">${lists}</div>` : ''}
+    ${hasAuto(c) ? `<div class="info">${esc(t('autoNote'))}</div>` : ''}
     ${checks ? `<div class="sub-title">${esc(t('checksTitle'))}</div><ul class="checks">${checks}</ul>` : ''}`;
 }
 

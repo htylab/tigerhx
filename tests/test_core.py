@@ -210,7 +210,23 @@ def test_slice_checks():
     bad[..., 3, 0][bad[..., 3, 0] == 1] = 0  # LV missing at ED on a middle slice
     kinds = {(c['kind'], c['phase'], c['chamber'], c['slice']) for c in metrics.slice_checks(bad, 0, 3)}
     assert ('es_gt_ed', 'ES', 'LV', 7) in kinds and ('gap', 'ED', 'LV', 3) in kinds
+    assert metrics.auto_exclusions(bad, 0, 3)['ES']['LV'] == [7]
+    assert metrics.auto_exclusions(seg, 0, 3) == {'ED': {'LV': [], 'RV': []}, 'ES': {'LV': [], 'RV': []}}
     skip = {'ED': {'LV': [4]}}  # a neighbour the user excluded is no evidence of a gap
     kinds = {(c['kind'], c['phase'], c['chamber'], c['slice']) for c in metrics.slice_checks(bad, 0, 3, True, skip)}
     assert ('gap', 'ED', 'LV', 3) not in kinds
     assert metrics.slice_checks(seg[..., :1], 0, 0) == []
+
+
+def test_open_ring_check():
+    seg = phantom()
+    open_base = seg.copy()
+    sl = open_base[:, :, 0, 3]
+    sl[(sl == 2) & (np.mgrid[:96, :96][0] < 48)] = 0     # remove half of the basal ring at ES
+    assert aha.LV and metrics.lv_ring_coverage(sl) < 0.75
+    kinds = {(c['kind'], c['chamber'], c['slice']) for c in metrics.slice_checks(open_base, 0, 3)}
+    assert ('open_ring', 'LV', 0) in kinds and ('basal', 'LV', 0) not in kinds
+    assert metrics.lv_ring_coverage(seg[:, :, 2, 0]) == 1.0
+    # thresholds are areas in mm^2: tiny voxels make the same structure 'small'
+    tiny = metrics.slice_checks(open_base, 0, 3, zooms=[0.01, 0.01, 8])
+    assert not any(c['kind'] == 'open_ring' for c in tiny)
