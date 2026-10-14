@@ -5,9 +5,10 @@ name: Python compile
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "claude/gifted-fermat-i039r8" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 permissions:
   contents: read
