@@ -9,6 +9,15 @@ on:
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'After building, publish a GitHub release with this tag (e.g. v0.1.0); empty = build only'
+        required: false
+        default: ''
+      release_notes:
+        description: 'Release notes (Markdown)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -72,3 +81,30 @@ jobs:
       with:
         name: ${{ matrix.py }}-${{ matrix.os }}
         path: dist/*
+
+  # Run manually (Actions -> Python compile -> Run workflow) with a tag to
+  # publish both executables, zipped, as a release of the commit just built.
+  release:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+    - name: Publish the release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ inputs.release_tag }}
+        NOTES: ${{ inputs.release_notes }}
+      run: |
+        cd artifacts
+        for d in */; do
+          name="${d%/}"; name="${name%-windows-latest}"
+          (cd "$d" && zip -9 -q "../${name}-${TAG}.zip" *.exe)
+        done
+        ls -l *.zip
+        gh release create "$TAG" *.zip --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+          --title "$TAG" --notes "$NOTES"

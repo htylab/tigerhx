@@ -9,6 +9,11 @@
 
 ### Install stand-alone version
     https://github.com/htylab/tigerhx/releases
+
+On Windows, download `tigerhxgui-<version>.zip`, unzip it and run
+`tigerhxgui.exe` (no installation; models are downloaded on first use). The
+window uses the Microsoft Edge WebView2 runtime, which Windows 10/11 normally
+already has. `tigercinegui-<version>.zip` is the previous Tk GUI.
 ### Install package
     pip install onnxruntime #for gpu version: onnxruntime-gpu
     pip install https://github.com/htylab/tigerhx/archive/main.zip
