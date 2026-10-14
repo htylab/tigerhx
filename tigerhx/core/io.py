@@ -72,9 +72,10 @@ def display_nifti_bytes(data, zooms, dtype=None):
     return img.to_bytes()
 
 
-def legacy_result(img, seg, apex_slice, base_first, model_name, voxel_size):
+def legacy_result(img, seg, apex_slice, base_first, model_name, voxel_size, ed=None, es=None):
     """The result dictionary written by the original GUI, field for field,
-    plus 'AHA17'.  img and seg are 4D; voxel_size as header.get_zooms()."""
+    plus 'AHA17'.  img and seg are 4D; voxel_size as header.get_zooms().
+    ed/es default to the original rule (max/min LV-blood voxel count)."""
     seg = seg.astype(np.int64)
     lvm = aha.legacy_lvm(seg, apex_slice, base_first)
     seg_aha = aha.legacy_seg_aha(seg, lvm)
@@ -97,7 +98,8 @@ def legacy_result(img, seg, apex_slice, base_first, model_name, voxel_size):
          'model': basename(model_name)}
     if seg.shape[3] > 1:
         lv_curve = (seg == aha.LV).sum(axis=(0, 1, 2))
-        es, ed = int(np.argmin(lv_curve)), int(np.argmax(lv_curve))
+        ed = int(np.argmax(lv_curve)) if ed is None else int(ed)
+        es = int(np.argmin(lv_curve)) if es is None else int(es)
         r.update({'ES_frame_0base': es, 'ED_frame_0base': ed,
                   'Seg_ES': seg[..., es], 'Seg_ED': seg[..., ed],
                   'SegAHA_ES': seg_aha[..., es], 'SegAHA_ED': seg_aha[..., ed]})

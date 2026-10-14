@@ -5,7 +5,7 @@ const I18N = {
   zh: {
     addFiles: '＋ 檔案', addFolder: '＋ 資料夾', model: '模型', stop: '■ 停止',
     runAll: n => `▶ 分割待處理 (${n})`, runChecked: n => `▶ 分割已選 (${n})`,
-    export: '匯出指標 CSV', settings: '輸出設定', pathsLabel: '檔案或資料夾路徑（每行一個）',
+    export: '匯出指標 CSV', settings: '設定', pathsLabel: '檔案或資料夾路徑（每行一個）',
     include: '包含關鍵字（逗號分隔，空白=全部）', exclude: '排除關鍵字', add: '加入', cancel: '取消',
     saveMat: '在工作資料夾輸出 .mat（舊版格式）', matInput: '.mat 也存到原始資料夾',
     niiInput: '分割 .nii.gz 存到原始資料夾', workspace: '工作資料夾', openFolder: '開啟資料夾',
@@ -30,11 +30,18 @@ const I18N = {
     singleFrame: '單一時相：無 EF。', notSegmented: '尚未分割。', error: '錯誤',
     lblLV: 'LV 血池', lblMYO: '心肌', lblRV: 'RV 血池', basal: 'Basal', mid: 'Mid', apical: 'Apical', apex: 'Apex',
     modelMissing: '（首次使用時下載）',
+    calib: 'ED / ES 與基底校正', auto: '自動', manual: '手動', resetPhases: '恢復自動 ED/ES',
+    useFrame: f => `用目前 frame（${f}）`, setSlice: k => `設為目前 slice（${k}）`, clear: '清除', all: '全部',
+    basalTitle: '基底起點：更靠 base 的 slice 不計入該時相的容積',
+    edRule: 'ED 自動判定', edRuleMax: '最大 LV 容積', edRuleFirst: '第一個 frame（R 波觸發）',
+    rule_max_volume: '最大容積', rule_first_frame: '第一個 frame', rule_min: '最小容積',
+    excluded: (ph, ch) => `${ph} 不計入 ${ch}`, curveNote: '曲線包含所有 slice，未套用基底排除。',
+    now: (f, k) => `目前：frame ${f} · slice ${k}`,
   },
   en: {
     addFiles: '＋ Files', addFolder: '＋ Folder', model: 'Model', stop: '■ Stop',
     runAll: n => `▶ Segment pending (${n})`, runChecked: n => `▶ Segment checked (${n})`,
-    export: 'Export metrics CSV', settings: 'Outputs', pathsLabel: 'File or folder paths (one per line)',
+    export: 'Export metrics CSV', settings: 'Settings', pathsLabel: 'File or folder paths (one per line)',
     include: 'Include keywords (comma separated, empty = all)', exclude: 'Exclude keywords', add: 'Add', cancel: 'Cancel',
     saveMat: 'Write legacy .mat to the workspace', matInput: 'Also write .mat next to the input',
     niiInput: 'Write segmentation .nii.gz next to the input', workspace: 'Workspace', openFolder: 'Open folder',
@@ -59,6 +66,13 @@ const I18N = {
     singleFrame: 'Single frame: no EF.', notSegmented: 'Not segmented yet.', error: 'Error',
     lblLV: 'LV blood', lblMYO: 'Myocardium', lblRV: 'RV blood', basal: 'Basal', mid: 'Mid', apical: 'Apical', apex: 'Apex',
     modelMissing: ' (downloaded on first use)',
+    calib: 'ED / ES and basal slices', auto: 'auto', manual: 'manual', resetPhases: 'Automatic ED/ES',
+    useFrame: f => `Use current frame (${f})`, setSlice: k => `Set to current slice (${k})`, clear: 'Clear', all: 'all',
+    basalTitle: 'First basal slice: slices further towards the base are not counted in that phase',
+    edRule: 'Automatic ED', edRuleMax: 'largest LV volume', edRuleFirst: 'first frame (R-wave triggered)',
+    rule_max_volume: 'max volume', rule_first_frame: 'first frame', rule_min: 'min volume',
+    excluded: (ph, ch) => `${ch} not counted at ${ph}`, curveNote: 'Curves include all slices; basal exclusion is not applied.',
+    now: (f, k) => `Now: frame ${f} · slice ${k}`,
   },
 };
 let lang = 'zh';
@@ -175,6 +189,7 @@ function renderTop(st) {
   if (document.activeElement !== sel) sel.value = st.settings.model;
   $('gpu').checked = !!st.settings.gpu;
   document.querySelectorAll('[data-setting]').forEach(el => { el.checked = !!st.settings[el.dataset.setting]; });
+  if (document.activeElement !== $('edRule')) $('edRule').value = st.settings.ed_rule || 'max_volume';
   $('workspace').textContent = st.workspace;
 
   const checked = [...S.checked].filter(id => st.cases.some(c => c.id === id));
@@ -240,8 +255,17 @@ function renderViewerBars(c) {
   $('btnSliceNext').disabled = !S.loadedKey || S.view === 'mosaic';
   fr.disabled = !S.loadedKey || nt < 2;
   const level = seg && S.slice !== null && c.levels ? c.levels[S.slice] : null;
-  $('levelTag').classList.toggle('hidden', !level);
-  $('levelTag').textContent = level ? t('lv_' + level) : '';
+  const notes = level ? [t('lv_' + level)] : [];
+  if (seg && S.slice !== null) {
+    [['ED', c.ed], ['ES', c.es]].forEach(([ph, f]) => {
+      if (f !== S.frame) return;
+      ['LV', 'RV'].forEach(ch => { if (isExcluded(c, ph, ch, S.slice)) notes.push(t('excluded', ph, ch)); });
+    });
+  }
+  $('levelTag').classList.toggle('hidden', !notes.length);
+  $('levelTag').classList.toggle('warn', notes.length > 1);
+  $('levelTag').textContent = notes.join(' · ');
+  renderCalib(c);
 
   $('apexValue').textContent = seg && c.apex_slice !== null ? c.apex_slice : '–';
   const tag = $('apexTag');
@@ -263,7 +287,7 @@ function renderViewerBars(c) {
 // ---------------------------------------------------------------- results
 function renderResults(c) {
   const box = $('results');
-  const key = c ? JSON.stringify([c.id, c.status, c.metrics, c.ed, c.es, S.frame, lang, c.message]) : 'none';
+  const key = c ? JSON.stringify([c.id, c.status, c.metrics, c.ed, c.es, c.basal, lang, c.message]) : 'none';
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   if (!c) { box.innerHTML = `<div class="empty">${esc(t('noResults'))}</div>`; return; }
@@ -292,16 +316,61 @@ function renderResults(c) {
         <tr><th>${esc(t('mass'))} <span class="muted">g</span></th><td>${fmt(m.LV_mass_g)}</td><td>–</td></tr>
       </tbody>
     </table>
-    <div class="info">${t('edFrame')}: <b>${c.ed}</b> · ${t('esFrame')}: <b>${c.es}</b> ·
-      ${esc(c.model)}<br><span class="mono">${esc(c.path)}</span></div>
+    ${multi ? '<div id="calib" class="chart-card"></div>' : ''}
+    <div class="info">${esc(c.model)}<br><span class="mono">${esc(c.path)}</span></div>
     ${multi ? `<div class="chart-card">
       <div class="chart-title">${esc(t('volCurve'))}
         <span class="key"><i style="background:var(--series-lv)"></i>LV</span>
         <span class="key"><i style="background:var(--series-rv)"></i>RV</span></div>
       <div class="chart" id="chart"></div>
+      ${hasBasal(c) ? `<div class="info">${esc(t('curveNote'))}</div>` : ''}
       <details><summary>${esc(t('table'))}</summary><div id="curveTable"></div></details>
     </div>` : ''}`;
-  if (multi) drawChart(c);
+  if (multi) { drawChart(c); renderCalib(c, true); }
+}
+
+const hasBasal = c => ['ED', 'ES'].some(ph => ['LV', 'RV'].some(ch => c.basal[ph][ch] !== null));
+
+function isExcluded(c, phase, chamber, k) {
+  const cut = c.basal && c.basal[phase] ? c.basal[phase][chamber] : null;
+  if (cut === null || cut === undefined) return false;
+  return c.base_first === false ? k > cut : k < cut;
+}
+
+function renderCalib(c, force = false) {
+  const box = $('calib');
+  if (!box || !isSegmented(c) || c.shape[3] < 2) return;
+  const key = JSON.stringify([c.id, c.ed, c.es, c.ed_manual, c.es_manual, c.basal, S.frame, S.slice, lang,
+    S.state.settings.ed_rule]);
+  if (!force && box.dataset.key === key) return;
+  box.dataset.key = key;
+  const rule = S.state.settings.ed_rule || 'max_volume';
+  const src = (manual, autoRule) => `<span class="tag${manual === null ? '' : ' ok'}">${esc(manual === null
+    ? `${t('auto')} · ${t('rule_' + autoRule)}` : t('manual'))}</span>`;
+  const k = S.slice === null ? '–' : S.slice;
+  const cell = (ph, ch) => {
+    const v = c.basal[ph][ch];
+    return `<td>${v === null ? `<span class="muted">${esc(t('all'))}</span>` : `<b>${v}</b>`}
+      <button class="small" data-basal="${ph},${ch}" title="${esc(t('setSlice', k))}"${S.slice === null ? ' disabled' : ''}>⤓ ${k}</button>
+      ${v === null ? '' : `<button class="small" data-basal-clear="${ph},${ch}" title="${esc(t('clear'))}">×</button>`}</td>`;
+  };
+  box.innerHTML = `
+    <div class="chart-title">${esc(t('calib'))}</div>
+    <table class="metrics calib">
+      <tr><th>ED</th><td>frame <b>${c.ed}</b> ${src(c.ed_manual, rule)}</td>
+        <td><button class="small" data-phase="ed">${esc(t('useFrame', S.frame))}</button></td></tr>
+      <tr><th>ES</th><td>frame <b>${c.es}</b> ${src(c.es_manual, 'min')}</td>
+        <td><button class="small" data-phase="es">${esc(t('useFrame', S.frame))}</button></td></tr>
+    </table>
+    ${c.ed_manual !== null || c.es_manual !== null
+      ? `<button class="small" data-phase="reset">${esc(t('resetPhases'))}</button>` : ''}
+    <div class="info" style="margin-top:8px">${esc(t('basalTitle'))}</div>
+    <table class="metrics calib">
+      <thead><tr><th></th><th>LV</th><th>RV</th></tr></thead>
+      <tbody><tr><th>ED</th>${cell('ED', 'LV')}${cell('ED', 'RV')}</tr>
+        <tr><th>ES</th>${cell('ES', 'LV')}${cell('ES', 'RV')}</tr></tbody>
+    </table>
+    <div class="info">${esc(t('now', S.frame, k))}</div>`;
 }
 
 function niceMax(v) {
@@ -681,6 +750,22 @@ function bind() {
   };
   $('btnSetApex').onclick = guard(() => postApex(S.slice, null));
   $('btnConfirmApex').onclick = guard(() => postApex(selectedCase().apex_slice, null));
+  $('edRule').onchange = guard(async () => { await api('/api/settings', { ed_rule: $('edRule').value }); await refresh(); });
+  $('results').addEventListener('click', guard(async ev => {
+    const c = selectedCase();
+    const b = ev.target.closest('button');
+    if (!c || !b) return;
+    if (b.dataset.phase) {
+      const body = b.dataset.phase === 'reset' ? { reset: true } : { [b.dataset.phase]: S.frame };
+      await api(`/api/cases/${c.id}/phases`, body);
+    } else if (b.dataset.basal || b.dataset.basalClear) {
+      const [phase, chamber] = (b.dataset.basal || b.dataset.basalClear).split(',');
+      await api(`/api/cases/${c.id}/basal`, { phase, chamber, slice: b.dataset.basal ? S.slice : null });
+    } else {
+      return;
+    }
+    await refresh();
+  }));
   $('sliceOrder').onchange = guard(() => postApex(selectedCase().apex_slice, $('sliceOrder').value === '1'));
 
   document.addEventListener('keydown', ev => {

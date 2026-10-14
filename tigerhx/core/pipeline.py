@@ -52,13 +52,19 @@ def segment_case(project, case, model_path, gpu=False, progress=None, cancel=Non
 
 def analyze_case(project, case, seg=None):
     """ED/ES, slice order, apex suggestion (unless already set), AHA17 map and
-    metrics.  Fast enough to rerun whenever the apex changes."""
+    metrics.  Fast enough to rerun whenever the user changes a choice."""
     if seg is None:
         seg = load_seg(project, case)
-    ed, es = metrics.find_ed_es(seg)
+    nt = seg.shape[3]
+    ed, es = metrics.find_ed_es(seg, project.settings.get('ed_rule', 'max_volume'))
     with project.lock:
+        if case.ed_manual is not None and 0 <= case.ed_manual < nt:
+            ed = case.ed_manual
+        if case.es_manual is not None and 0 <= case.es_manual < nt:
+            es = case.es_manual
         base_first = case.base_first
         apex = case.apex_slice
+        basal = {ph: dict(v) for ph, v in case.basal.items()}
     if base_first is None:
         base_first = aha.detect_base_first(seg, ed)
     if apex is None:
@@ -73,7 +79,7 @@ def analyze_case(project, case, seg=None):
         case.base_first, case.apex_slice = base_first, apex
         levels = aha.slice_levels(seg, ed, apex, base_first)
         case.levels = [levels[z] for z in range(seg.shape[2])]
-        case.metrics = metrics.compute_metrics(seg, zooms, ed, es)
+        case.metrics = metrics.compute_metrics(seg, zooms, ed, es, basal, base_first)
         case.curves = {k: [round(v, 2) for v in vals]
                        for k, vals in metrics.volume_curves(seg, zooms).items()}
     return a17
@@ -87,6 +93,35 @@ def set_apex(project, case, apex_slice, base_first=None):
             case.base_first = bool(base_first)
         case.apex_confirmed = True
         case.status = 'done'
+    analyze_case(project, case)
+
+
+def set_phases(project, case, ed=None, es=None, reset=False):
+    """User-chosen ED and/or ES frame (reset=True returns to automatic)."""
+    nt = case.shape[3] if case.shape else 1
+    for value in (ed, es):
+        if value is not None and not 0 <= int(value) < nt:
+            raise ValueError(f'frame must be within 0..{nt - 1}')
+    with project.lock:
+        if reset:
+            case.ed_manual = case.es_manual = None
+        if ed is not None:
+            case.ed_manual = int(ed)
+        if es is not None:
+            case.es_manual = int(es)
+    analyze_case(project, case)
+
+
+def set_basal(project, case, phase, chamber, first_slice):
+    """Basal-most slice counted for one phase (ED/ES) and chamber (LV/RV);
+    None counts every slice again."""
+    if phase not in case.basal or chamber not in case.basal[phase]:
+        raise ValueError('phase must be ED or ES and chamber LV or RV')
+    nz = case.shape[2] if case.shape else 0
+    if first_slice is not None and not 0 <= int(first_slice) < nz:
+        raise ValueError(f'slice must be within 0..{nz - 1}')
+    with project.lock:
+        case.basal[phase][chamber] = None if first_slice is None else int(first_slice)
     analyze_case(project, case)
 
 
@@ -105,7 +140,8 @@ def write_outputs(project, case, data=None, seg=None, affine=None, header=None):
     outputs = {}
     if s.get('save_mat') or s.get('mat_in_inputdir'):
         voxel_size = list(nib.load(case.path).header.get_zooms())
-        rdict = legacy_result(data, seg, case.apex_slice, case.base_first, case.model, voxel_size)
+        rdict = legacy_result(data, seg, case.apex_slice, case.base_first, case.model, voxel_size,
+                              ed=case.ed, es=case.es)
         if s.get('save_mat'):
             p = join(project.case_dir(case), f'{stem}_pred_{ver}.mat')
             save_mat(p, rdict)

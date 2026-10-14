@@ -26,7 +26,7 @@ from urllib.parse import parse_qs, urlparse
 import nibabel as nib
 import numpy as np
 
-from tigerhx.core import io, models, pipeline
+from tigerhx.core import io, metrics, models, pipeline
 from tigerhx.core.inference import Cancelled
 from tigerhx.core.project import Project
 
@@ -46,6 +46,7 @@ class App:
         self.model_status = {'state': 'idle', 'name': '', 'progress': 0.0, 'message': ''}
         self._cache = OrderedDict()
         self._cache_lock = threading.Lock()
+        self._analysis_lock = threading.Lock()  # one reanalysis at a time
         threading.Thread(target=self._worker, daemon=True).start()
 
     # ---- state -------------------------------------------------------
@@ -65,11 +66,30 @@ class App:
 
     def update_settings(self, values):
         p = self.project
+        rule = values.get('ed_rule')
+        if rule is not None and rule not in metrics.ED_RULES:
+            raise ValueError(f'ed_rule must be one of {metrics.ED_RULES}')
         with p.lock:
             for k in ('model', 'gpu', 'save_mat', 'mat_in_inputdir', 'nii_in_inputdir'):
                 if k in values:
                     p.settings[k] = values[k] if k == 'model' else bool(values[k])
+            changed = rule is not None and rule != p.settings.get('ed_rule')
+            if rule is not None:
+                p.settings['ed_rule'] = rule
             p.save()
+        if changed:  # automatic ED frames move: redo every analysed case
+            threading.Thread(target=self._reanalyze_all, daemon=True).start()
+
+    def _reanalyze_all(self):
+        p = self.project
+        with p.lock:
+            ids = [c.id for c in p.cases.values()
+                   if c.metrics and c.status not in ('queued', 'running')]
+        for cid in ids:
+            try:
+                self._analyze(cid, lambda case: pipeline.analyze_case(p, case))
+            except Exception:
+                traceback.print_exc()
 
     # ---- jobs --------------------------------------------------------
     def run(self, ids):
@@ -148,19 +168,31 @@ class App:
                 p.save()
 
     # ---- analysis ----------------------------------------------------
-    def set_apex(self, cid, apex_slice, base_first=None):
+    def _analyze(self, cid, change):
+        """Apply a user choice to a segmented case and refresh what depends
+        on it: the AHA volume, the project file and (off-thread) the .mat."""
         p = self.project
         case = p.cases[cid]
         if case.status in ('queued', 'running') or not pipeline.has_seg(p, case):
             raise ValueError('case is not segmented')
+        with self._analysis_lock:
+            change(case)
+        self.invalidate(cid, 'aha')
+        p.save()
+        threading.Thread(target=self._write_outputs, args=(case,), daemon=True).start()
+
+    def set_apex(self, cid, apex_slice, base_first=None):
+        case = self.project.cases[cid]
         nz = case.shape[2] if case.shape else None
         if nz is not None and not 0 <= int(apex_slice) < nz:
             raise ValueError(f'apex slice must be within 0..{nz - 1}')
-        pipeline.set_apex(p, case, apex_slice, base_first)
-        self.invalidate(cid, 'aha')
-        p.save()
-        # .mat / input-folder files depend on the apex; rewrite them off-thread
-        threading.Thread(target=self._write_outputs, args=(case,), daemon=True).start()
+        self._analyze(cid, lambda c: pipeline.set_apex(self.project, c, apex_slice, base_first))
+
+    def set_phases(self, cid, ed=None, es=None, reset=False):
+        self._analyze(cid, lambda c: pipeline.set_phases(self.project, c, ed, es, reset))
+
+    def set_basal(self, cid, phase, chamber, first_slice):
+        self._analyze(cid, lambda c: pipeline.set_basal(self.project, c, phase, chamber, first_slice))
 
     def _write_outputs(self, case):
         try:
@@ -334,10 +366,18 @@ def make_handler(app):
                     if isdir(path):
                         open_in_file_manager(path)
                     return self._json({'path': path})
-                if len(parts) == 4 and parts[:2] == ['api', 'cases'] and parts[3] == 'apex':
-                    if parts[2] not in app.project.cases:
+                if len(parts) == 4 and parts[:2] == ['api', 'cases']:
+                    cid, action = parts[2], parts[3]
+                    if cid not in app.project.cases:
                         return self._json({'error': 'not found'}, 404)
-                    app.set_apex(parts[2], body['apex_slice'], body.get('base_first'))
+                    if action == 'apex':
+                        app.set_apex(cid, body['apex_slice'], body.get('base_first'))
+                    elif action == 'phases':
+                        app.set_phases(cid, body.get('ed'), body.get('es'), bool(body.get('reset')))
+                    elif action == 'basal':
+                        app.set_basal(cid, body['phase'], body['chamber'], body.get('slice'))
+                    else:
+                        return self._json({'error': 'not found'}, 404)
                     return self._json({'ok': True})
             except (ValueError, KeyError) as e:
                 return self._json({'error': str(e)}, 400)

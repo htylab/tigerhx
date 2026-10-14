@@ -262,3 +262,6 @@ details summary { cursor: pointer; color: var(--ink-2); font-size: 12px; }
   main { grid-template-columns: 1fr; }
   .canvas-wrap { min-height: 420px; }
 }
+
+table.calib td { text-align: left; white-space: nowrap; }
+table.calib td button { margin-left: 4px; }

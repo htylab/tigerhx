@@ -23,7 +23,14 @@ DEFAULT_SETTINGS = {
     'save_mat': True,          # legacy .mat in the workspace
     'mat_in_inputdir': False,  # legacy .mat next to the input file
     'nii_in_inputdir': False,  # label NIfTI next to the input file
+    'ed_rule': 'max_volume',   # automatic ED: largest LV volume or first frame
 }
+
+PHASES, CHAMBERS = ('ED', 'ES'), ('LV', 'RV')
+
+
+def empty_basal():
+    return {ph: {ch: None for ch in CHAMBERS} for ph in PHASES}
 
 
 @dataclass
@@ -42,6 +49,9 @@ class Case:
     base_first: bool = None
     apex_slice: int = None
     apex_confirmed: bool = False
+    ed_manual: int = None      # user-set ED/ES frames override the automatic ones
+    es_manual: int = None
+    basal: dict = field(default_factory=empty_basal)  # basal-most counted slice
     levels: list = None
     metrics: dict = None
     curves: dict = None
@@ -50,7 +60,12 @@ class Case:
     @classmethod
     def from_dict(cls, d):
         names = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in d.items() if k in names})
+        c = cls(**{k: v for k, v in d.items() if k in names})
+        basal = empty_basal()
+        for ph in PHASES:
+            basal[ph].update((c.basal or {}).get(ph) or {})
+        c.basal = basal
+        return c
 
     @property
     def folder(self):
@@ -152,16 +167,23 @@ class Project:
     def export_metrics(self, path=None):
         """Write one row per segmented case to a CSV; returns its path."""
         path = path or join(self.workspace, 'tigerhx_metrics.csv')
-        header = ['Case', 'Filename', 'Status', 'Model', 'ED_frame_0base', 'ES_frame_0base',
-                  'Apex_slice_0base', 'Apex_confirmed', 'Slice_order'] + METRIC_KEYS
+        header = ['Case', 'Filename', 'Status', 'Model', 'ED_frame_0base', 'ED_source',
+                  'ES_frame_0base', 'ES_source', 'Apex_slice_0base', 'Apex_confirmed',
+                  'Slice_order'] + [f'Basal_{ph}_{ch}' for ph in PHASES for ch in CHAMBERS] \
+            + METRIC_KEYS
         rows = []
         with self.lock:
+            rule = self.settings.get('ed_rule', 'max_volume')
             for c in self.cases.values():
                 if not c.metrics:
                     continue
                 order = '' if c.base_first is None else ('base->apex' if c.base_first else 'apex->base')
-                rows.append([c.name, c.path, c.status, c.model, c.ed, c.es, c.apex_slice,
-                             int(bool(c.apex_confirmed)), order]
+                basal = [c.basal[ph][ch] for ph in PHASES for ch in CHAMBERS]
+                rows.append([c.name, c.path, c.status, c.model,
+                             c.ed, 'manual' if c.ed_manual is not None else rule,
+                             c.es, 'manual' if c.es_manual is not None else 'min_volume',
+                             c.apex_slice, int(bool(c.apex_confirmed)), order]
+                            + ['' if b is None else b for b in basal]
                             + ['' if c.metrics.get(k) is None else c.metrics[k] for k in METRIC_KEYS])
         write_csv(path, header, rows)
         return path

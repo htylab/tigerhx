@@ -119,3 +119,34 @@ def test_guitool_single_row_csv(tmp_path, cine):
     files, options, common = guitool.run_program_gui_interaction(p, Log(), None)
     assert files == [cine[0]] and options[0]['Apex'] == 5 and options[0]['nii_in_inputdir'] == 1
     assert os.path.relpath(files[0], common) == 'sub.01.cine.nii.gz'
+
+
+def test_phase_and_basal_choices(tmp_path, model, cine):
+    proj = Project(str(tmp_path / 'ws'))
+    proj.settings.update(save_mat=False)
+    case = proj.add_paths([cine[0]])[0]
+    pipeline.segment_case(proj, case, model)
+    ef = case.metrics['LV_EF_pct']
+
+    pipeline.set_phases(proj, case, ed=1)
+    assert (case.ed, case.es, case.ed_manual) == (1, 3, 1) and case.metrics['LV_EF_pct'] < ef
+    with pytest.raises(ValueError):
+        pipeline.set_phases(proj, case, es=99)
+    pipeline.set_phases(proj, case, reset=True)
+    assert case.ed == 0 and case.ed_manual is None
+
+    rv_esv = case.metrics['RV_ESV_mL']
+    pipeline.set_basal(proj, case, 'ES', 'RV', 1)
+    assert case.basal['ES']['RV'] == 1 and case.metrics['RV_ESV_mL'] < rv_esv
+    pipeline.set_basal(proj, case, 'ES', 'RV', None)
+    assert case.metrics['RV_ESV_mL'] == rv_esv
+    with pytest.raises(ValueError):
+        pipeline.set_basal(proj, case, 'MID', 'RV', 1)
+
+    proj.settings['ed_rule'] = 'first_frame'
+    pipeline.set_basal(proj, case, 'ED', 'LV', 2)
+    proj.save()
+    again = Project(str(tmp_path / 'ws')).cases[case.id]
+    assert again.basal == {'ED': {'LV': 2, 'RV': None}, 'ES': {'LV': None, 'RV': None}}
+    row = io.read_csv(proj.export_metrics())[0]
+    assert row['Basal_ED_LV'] == '2' and row['ED_source'] == 'first_frame'

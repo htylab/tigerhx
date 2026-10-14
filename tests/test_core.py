@@ -176,3 +176,30 @@ def test_save_labels_and_display_bytes(tmp_path):
     # voxel row i points to -Y (down the screen), column j to +X (right)
     assert (img.affine[:3, :3] @ [1, 0, 0] == [0, -1, 0]).all()
     assert (img.affine[:3, :3] @ [0, 1, 0] == [2, 0, 0]).all()
+
+
+def test_ed_rules_and_basal_exclusion():
+    seg = phantom()
+    assert metrics.find_ed_es(seg, 'first_frame') == (0, 3)
+    rolled = np.roll(seg, 2, axis=3)                # largest LV volume now at frame 2
+    assert metrics.find_ed_es(rolled) == (2, 5)
+    assert metrics.find_ed_es(rolled, 'first_frame') == (0, 5)
+    with pytest.raises(ValueError):
+        metrics.find_ed_es(seg, 'r_wave')
+
+    zooms = [1.5, 1.5, 8.0]
+    v = 1.5 * 1.5 * 8 / 1000
+    full = metrics.compute_metrics(seg, zooms, 0, 3)
+    rv = (seg == 3).sum(axis=(0, 1, 2)) * v
+    assert full['RV_EDV_mL'] == pytest.approx(rv[0], abs=0.01)   # RV at the ED/ES frames
+    assert full['RV_ESV_mL'] == pytest.approx(rv[3], abs=0.01)
+
+    basal = {'ED': {'LV': None, 'RV': None}, 'ES': {'LV': None, 'RV': 1}}
+    cut = metrics.compute_metrics(seg, zooms, 0, 3, basal, base_first=True)
+    assert cut['RV_ESV_mL'] == pytest.approx(rv[3] - (seg[:, :, 0, 3] == 3).sum() * v, abs=0.01)
+    assert cut['RV_EDV_mL'] == full['RV_EDV_mL'] and cut['LV_EF_pct'] == full['LV_EF_pct']
+    # reversed stack: slice 6 is the second basal slice, so slice 7 is dropped
+    flipped = metrics.compute_metrics(seg[:, :, ::-1], zooms, 0, 3, {'ES': {'RV': 6}}, base_first=False)
+    assert flipped['RV_ESV_mL'] == cut['RV_ESV_mL']
+    assert list(metrics.included_slices(4, 1, True)) == [False, True, True, True]
+    assert list(metrics.included_slices(4, 2, False)) == [True, True, True, False]

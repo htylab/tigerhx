@@ -47,19 +47,30 @@ Workflow:
    suggested automatically; check them on the images and use
    *Use current slice as apex* or *Confirm suggestion*. The AHA labels and
    metrics are recomputed instantly.
-4. **Export metrics CSV** – LV/RV EDV, ESV, SV, EF and LV mass for all cases.
+4. **Check ED/ES and the basal slices** (results panel) – replace the
+   automatic ED or ES frame with the frame on screen, and for each phase
+   (ED/ES) and chamber (LV/RV) set the first basal slice to count, e.g. to drop
+   a basal slice that is already atrium at ES. Metrics update immediately.
+5. **Export metrics CSV** – LV/RV EDV, ESV, SV, EF and LV mass for all cases,
+   with the ED/ES frames, how they were chosen and the basal settings.
 
 Files written per case in `<workspace>/cases/<name>/`: `seg.nii.gz`
 (labels 1–3), `aha17.nii.gz` (AHA segments 1–17 on the myocardium) and,
-unless switched off under *Outputs*, the `.mat` file of the previous GUI
+unless switched off under *Settings*, the `.mat` file of the previous GUI
 (`*_pred_<version>.mat`, same fields plus `AHA17`).
 
 Notes on the analysis:
 
-* ED/ES are the frames with the largest/smallest LV blood volume; RV values
-  use the RV curve's own maximum/minimum. LV mass = myocardium volume at ED ×
-  1.05 g/mL. Volumes use the voxel size from the NIfTI header (slice spacing
-  included).
+* ES is the frame with the smallest LV blood volume. ED is the frame with the
+  largest LV volume (default, as in the previous GUI) or the first frame
+  (*Settings → Automatic ED*; the R-wave triggered frame of an ECG-gated cine).
+  Either can be overridden per case. LV and RV values are both taken at these
+  ED/ES frames. LV mass = myocardium volume at ED × 1.05 g/mL. Volumes use the
+  voxel size from the NIfTI header (slice spacing included); EF does not
+  depend on it. The volume–time curves always include every slice.
+* Trigger times are not needed for EF. Cardiac output and time-based indices
+  (filling rates) would need the heart rate or trigger times, which NIfTI
+  files usually do not carry.
 * AHA sectors use the direction from the LV to the RV blood-pool centroid as
   reference (septum between sectors 2 and 3), as in the previous GUI; the
   segment names assume the standard short-axis orientation. Slices from the
@@ -67,6 +78,19 @@ Notes on the analysis:
   myocardium but no cavity beyond it are segment 17.
 
 The previous Tk GUI (`tigercinegui.py`) is still available.
+
+## Validation
+
+`tools/eval_acdc.py` downloads a preprocessed copy of ACDC from Hugging Face
+(`mathpluscode/ACDC`, CC BY-NC-SA 4.0, resampled to 1 × 1 × 10 mm and cropped
+around the LV) and compares models with the expert ED/ES labels:
+
+    python tools/eval_acdc.py --per-group 2 --models cine4d_v0006_xy_cine.onnx
+    python tools/eval_acdc.py --per-group 4 --ed-rule first_frame --out acdc.csv
+
+It reports Dice per structure, LV/RV EF error, EDV and mass error and whether
+the detected ED/ES frames match the labelled ones. Models trained on ACDC
+(e.g. v0003 *mms12acdc*) score optimistically on it.
 
 ## Development
 
