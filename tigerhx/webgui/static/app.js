@@ -31,9 +31,6 @@ const I18N = {
     modelMissing: '（首次使用時下載）',
     phases: (ed, es) => `ED frame ${ed} · ES frame ${es}（LV 血池最大 / 最小）`,
     checksTitle: '建議檢查', show: '查看', flagged: '有警示',
-    checksNone: '自動檢查沒有發現問題。仍建議切到「輪廓」逐張看一下。',
-    checksNote: '自動檢查只抓得到明顯的錯誤：ES 比 ED 大、漏標的 slice、基底 LV 沒被心肌包住。',
-    singleFrame: '單一時相：需要 cine 才能做 ED/ES 的比對檢查。',
     chkBigger: (z, ch, es, ed) => `slice ${z}：ES 的 ${ch} 比 ED 大（${es} vs ${ed} mm²），可能標到心室外的結構`,
     chkGap: (z, ph, ch, a, n) => `slice ${z}：${ph} 的 ${ch} 疑似漏標（${a} mm²，鄰近 slice ${n} mm²）`,
     chkRing: (z, p) => `slice ${z}：ES 最基底的 LV 只有 ${p}% 被心肌包住，LV 標記可能已進入心房`,
@@ -68,9 +65,6 @@ const I18N = {
     modelMissing: ' (downloaded on first use)',
     phases: (ed, es) => `ED frame ${ed} · ES frame ${es} (largest / smallest LV blood pool)`,
     checksTitle: 'Worth checking', show: 'Show', flagged: 'flagged',
-    checksNone: 'The automatic checks found nothing. Still worth stepping through the slices with Contours.',
-    checksNote: 'The automatic checks only catch clear errors: a cavity larger at ES than at ED, a missed slice, a basal LV not enclosed by myocardium.',
-    singleFrame: 'Single frame: the ED/ES comparisons need a cine.',
     chkBigger: (z, ch, es, ed) => `slice ${z}: ${ch} larger at ES than at ED (${es} vs ${ed} mm²), the label may cover a structure outside the ventricle`,
     chkGap: (z, ph, ch, a, n) => `slice ${z}: ${ch} possibly missed at ${ph} (${a} mm², neighbouring slices ${n} mm²)`,
     chkRing: (z, p) => `slice ${z}: only ${p}% of the basal-most LV at ES is enclosed by myocardium, the LV label may include atrium`,
@@ -314,13 +308,10 @@ function renderResults(c) {
   const outputs = Object.values(c.outputs || {}).map(p => `<li class="mono">${esc(p)}</li>`).join('');
   box.innerHTML = `${info}
     <div class="info">${esc(c.model)}${multi ? `<br>${esc(t('phases', c.ed, c.es))}` : ''}</div>
-    <div class="card">
+    ${checks ? `<div class="card">
       <div class="card-title">${esc(t('checksTitle'))}</div>
-      ${!multi ? `<div class="info">${esc(t('singleFrame'))}</div>`
-        : checks ? `<ul class="checks">${checks}</ul>`
-        : `<ul class="checks"><li class="done"><span class="ico">✓</span><span>${esc(t('checksNone'))}</span></li></ul>`}
-      <div class="info">${esc(t('checksNote'))}</div>
-    </div>
+      <ul class="checks">${checks}</ul>
+    </div>` : ''}
     ${outputs ? `<div class="sub-title">${esc(t('outputs'))}</div><ul class="outputs">${outputs}</ul>` : ''}`;
 }
 

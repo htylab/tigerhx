@@ -211,8 +211,8 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
 .results .body { padding: 12px; display: flex; flex-direction: column; gap: 14px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
   display: flex; flex-direction: column; gap: 8px; }
-.card-title { font-size: 12px; color: var(--ink-2); font-weight: 500; }
-.info { font-size: 12px; color: var(--ink-2); line-height: 1.6; }
+.card-title { font-size: 14px; color: var(--ink-2); font-weight: 500; }
+.info { font-size: 13px; color: var(--ink-2); line-height: 1.6; }
 .info b { color: var(--ink); font-weight: 500; }
 
 .statusbar {
@@ -228,15 +228,13 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
   .canvas-wrap { min-height: 420px; }
 }
 
-.sub-title { font-size: 12px; color: var(--ink-2); margin-bottom: -8px; font-weight: 500; }
-ul.outputs { list-style: none; margin: 0; padding: 0; font-size: 11px; color: var(--ink-2); word-break: break-all; }
+.sub-title { font-size: 13px; color: var(--ink-2); margin-bottom: -8px; font-weight: 500; }
+ul.outputs { list-style: none; margin: 0; padding: 0; font-size: 12px; color: var(--ink-2); word-break: break-all; }
 ul.outputs li + li { margin-top: 2px; }
-ul.checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-ul.checks li { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.45; }
+ul.checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+ul.checks li { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 1.5; }
 ul.checks li span:nth-child(2) { flex: 1; }
 ul.checks .ico { width: 1em; flex: none; }
 ul.checks li.warn .ico { color: var(--critical-ink); }
-ul.checks li.done { color: var(--muted); }
-ul.checks li.done .ico { color: var(--good-ink); }
 .warn-mark { color: var(--critical-ink); font-size: 11px; white-space: nowrap; }
 .ok-mark { color: var(--good-ink); font-size: 11px; }
