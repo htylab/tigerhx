@@ -227,9 +227,8 @@ impl App {
 
     /// Fetch every GUI model now (for a computer that is usually offline).
     pub fn download_all(self: &Arc<Self>) -> usize {
-        let dir = models::model_dir();
         let missing: Vec<String> =
-            GUI_MODELS.iter().filter(|m| !dir.join(m).is_file()).map(|m| m.to_string()).collect();
+            GUI_MODELS.iter().filter(|m| !models::is_available(m)).map(|m| m.to_string()).collect();
         let n = missing.len();
         if n == 0 {
             self.log("All models are already downloaded", "info");
@@ -381,7 +380,7 @@ impl App {
     }
 
     fn segment(&self, id: &str, model: &str) -> Result<()> {
-        if !models::model_dir().join(model).is_file() {
+        if !models::is_available(model) {
             *self.model_status.lock().unwrap() =
                 ModelStatus { state: "downloading".into(), name: model.into(), progress: 0.0, message: String::new() };
         }

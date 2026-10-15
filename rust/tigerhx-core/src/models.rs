@@ -16,6 +16,23 @@ pub const MODEL_SERVERS: [&str; 4] = [
 pub const GUI_MODELS: [&str; 3] =
     ["cine4d_v0004_xy_retrain.onnx", "cine4d_v0005_xy_cineT1map.onnx", "cine4d_v0006_xy_cine.onnx"];
 
+/// The model built into the executable (see build.rs), if any.
+#[cfg(embedded_model)]
+const EMBEDDED: Option<(&str, &[u8])> =
+    Some((env!("TIGERHX_EMBEDDED_MODEL_NAME"), include_bytes!(env!("TIGERHX_EMBEDDED_MODEL"))));
+#[cfg(not(embedded_model))]
+const EMBEDDED: Option<(&str, &[u8])> = None;
+
+/// Name of the model built into the executable, if any.
+pub fn embedded_model() -> Option<&'static str> {
+    EMBEDDED.map(|(name, _)| name)
+}
+
+/// Whether a model can be used without a download.
+pub fn is_available(name: &str) -> bool {
+    embedded_model() == Some(name) || model_dir().join(name).is_file()
+}
+
 /// Folder of the executable.
 pub fn app_dir() -> PathBuf {
     std::env::current_exe()
@@ -46,6 +63,11 @@ pub fn list_models(dir: Option<&Path>) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default();
+    if let Some(name) = embedded_model() {
+        if !names.iter().any(|n| n == name) {
+            names.push(name.to_string());
+        }
+    }
     names.sort();
     names
 }
@@ -108,6 +130,13 @@ pub fn ensure_model(name: &str, progress: &dyn Fn(u64, u64), dir: Option<&Path>)
     let dir = dir.map(Path::to_path_buf).unwrap_or_else(model_dir);
     let path = dir.join(&base);
     if path.is_file() {
+        return Ok(path);
+    }
+    if let Some((_, bytes)) = EMBEDDED.filter(|(n, _)| *n == base) {
+        // written out once, like a download (the session loads it from a file)
+        let part = PathBuf::from(format!("{}.part", path.display()));
+        fs::write(&part, bytes)?;
+        fs::rename(&part, &path)?;
         return Ok(path);
     }
     let mut errors = Vec::new();

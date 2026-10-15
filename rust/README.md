@@ -31,6 +31,14 @@ Same options and workspace as `tigerhx-gui` (Python). Models are looked up
 in `models` next to the executable or in `TIGERHX_MODEL_DIR`, and downloaded
 there on first use.
 
+The Windows build is a single file, as in
+[rustbx](https://github.com/htylab/rustbx): ONNX Runtime is linked in
+statically and the default model is built in when
+`rust/models/cine4d_v0006_xy_cine.onnx` exists at build time (or the file named
+by `TIGERHX_EMBED_MODEL`; CI downloads it), so it segments without a download.
+ONNX Runtime's Windows build links to `DirectML.dll`, which Windows 10 (1903)
+and later include; only the CPU is used, so the DLL is not shipped.
+
 ## Tests
 
     cargo test -p tigerhx-core

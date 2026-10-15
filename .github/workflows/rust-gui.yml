@@ -49,6 +49,13 @@ jobs:
     - uses: Swatinem/rust-cache@v2
       with:
         workspaces: rust
+    # built into the executable (tigerhx-core/build.rs): segments offline
+    - name: Download the default model
+      shell: bash
+      run: |
+        mkdir -p rust/models
+        curl -fL --retry 3 -o rust/models/cine4d_v0006_xy_cine.onnx \
+          https://github.com/htylab/tigerhx/releases/download/modelhub/cine4d_v0006_xy_cine.onnx
     - name: Build
       working-directory: rust
       run: cargo build --release -p tigerhx-gui
@@ -63,11 +70,12 @@ jobs:
     - name: Collect
       shell: bash
       run: |
+        # one file, like rustbx: ONNX Runtime is linked in statically and the
+        # default model is built in. The DirectML.dll that ONNX Runtime's
+        # Windows build links to is part of Windows 10 (1903) and later, and
+        # only the CPU is used, so it is not shipped.
         mkdir dist
         cp rust/target/release/tigerhxgui.exe dist/
-        # ONNX Runtime is linked statically when available; ship any DLL otherwise
-        shopt -s nullglob
-        for f in rust/target/release/*.dll; do cp "$f" dist/; done
         ls -l dist
     - uses: actions/upload-artifact@v4
       with:

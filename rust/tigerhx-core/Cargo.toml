@@ -6,7 +6,7 @@ license.workspace = true
 description = "UI-independent TigerHx processing: NIfTI, ONNX segmentation, AHA, checks, legacy .mat, workspace"
 
 [dependencies]
-ort = { version = "=2.0.0-rc.14", default-features = false, features = ["std", "download-binaries", "copy-dylibs", "tls-native", "api-20"] }
+ort = { version = "=2.0.0-rc.14", default-features = false, features = ["std", "download-binaries", "tls-native", "api-20"] }
 flate2 = "1"
 encoding_rs = "0.8"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
