@@ -152,43 +152,47 @@ class Project:
         original-GUI results (.mat; with results=True a folder adds its
         *pred*.mat).  Returns {'added': [cases], 'updated': [cases],
         'missing': [paths named in a CSV that do not exist]}."""
+        # files are read and folders scanned before taking the lock: a large
+        # folder would otherwise hold up every other request meanwhile
+        plan = []
+        for p in paths:
+            p = p.strip().strip('"')
+            low = p.lower()
+            if isfile(p) and low.endswith('.csv'):
+                plan.append(('csv', read_case_csv(p)))
+            elif (isfile(p) and low.endswith('.mat')) or (results and isdir(p)):
+                plan.append(('mat', [p] if isfile(p) else scan_results(p)))
+            elif isdir(p):
+                plan.append(('nii', [(f, relpath(f, p)) for f in scan_folder(p, include, exclude)]))
+            elif isfile(p) and low.endswith(NII_EXT):
+                plan.append(('nii', [(p, os.path.basename(p))]))
         added, updated, missing = [], [], []
         with self.lock:
-            for p in paths:
-                p = p.strip().strip('"')
-                low = p.lower()
-                if isfile(p) and low.endswith('.csv'):
-                    a, u, m = self._import_csv(p)
+            for kind, items in plan:
+                if kind == 'csv':
+                    a, u, m = self._import_csv(items)
                     added += a
                     updated += u
                     missing += m
-                    continue
-                if (isfile(p) and low.endswith('.mat')) or (results and isdir(p)):
-                    for f in ([p] if isfile(p) else scan_results(p)):
+                elif kind == 'mat':
+                    for f in items:
                         c = self._new_case(f, os.path.basename(f)[:-4], kind='mat')
                         if c:
                             added.append(c)
-                    continue
-                if isdir(p):
-                    items = [(f, relpath(f, p)) for f in scan_folder(p, include, exclude)]
-                elif isfile(p) and low.endswith(NII_EXT):
-                    items = [(p, os.path.basename(p))]
                 else:
-                    continue
-                for path, rel in items:
-                    head, tail = os.path.split(rel)
-                    name = '/'.join(filter(None, [head.replace(os.sep, '/'), strip_nii_ext(tail)]))
-                    c = self._new_case(path, name)
-                    if c:
-                        added.append(c)
+                    for path, rel in items:
+                        head, tail = os.path.split(rel)
+                        name = '/'.join(filter(None, [head.replace(os.sep, '/'), strip_nii_ext(tail)]))
+                        c = self._new_case(path, name)
+                        if c:
+                            added.append(c)
             self.save()
         return {'added': added, 'updated': updated, 'missing': missing}
 
-    def _import_csv(self, csv_path):
+    def _import_csv(self, rows):
         """An original-GUI case list: a filled-in Apex counts as confirmed;
         the two output columns override the settings for that case.  Names
         are relative to the folder the files have in common."""
-        rows = read_case_csv(csv_path)
         missing = [r['path'] for r in rows if not isfile(r['path'])]
         rows = [r for r in rows if isfile(r['path'])]
         common = os.path.commonpath([os.path.dirname(r['path']) for r in rows]) if rows else ''

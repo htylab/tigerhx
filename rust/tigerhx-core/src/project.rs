@@ -329,6 +329,32 @@ impl Project {
     /// original-GUI results (.mat; with `results` a folder adds its
     /// *pred*.mat).
     pub fn add_paths(&self, paths: &[String], include: &str, exclude: &str, results: bool) -> Result<Added> {
+        // files are read and folders scanned before taking the lock: a large
+        // folder would otherwise hold up every other request meanwhile
+        enum Item {
+            Csv(Vec<caselist::CaseRow>),
+            Mat(Vec<PathBuf>),
+            Nifti(Vec<(PathBuf, PathBuf)>),
+        }
+        let mut plan = Vec::new();
+        for p in paths {
+            let p = p.trim().trim_matches('"');
+            if p.is_empty() {
+                continue;
+            }
+            let p = Path::new(p);
+            if p.is_file() && is_ext(p, ".csv") {
+                plan.push(Item::Csv(caselist::read_case_csv(p)?));
+            } else if (p.is_file() && is_ext(p, ".mat")) || (results && p.is_dir()) {
+                plan.push(Item::Mat(if p.is_file() { vec![p.to_path_buf()] } else { scan_results(p) }));
+            } else if p.is_dir() {
+                plan.push(Item::Nifti(
+                    scan_folder(p, include, exclude).into_iter().map(|f| (f.clone(), relpath(&f, p))).collect(),
+                ));
+            } else if p.is_file() && is_nifti(p) {
+                plan.push(Item::Nifti(vec![(p.to_path_buf(), PathBuf::from(p.file_name().unwrap_or_default()))]));
+            }
+        }
         let mut out = Added::default();
         {
             let mut state = self.lock();
@@ -342,34 +368,21 @@ impl Project {
                 state.cases.push(c.clone());
                 Some(c)
             };
-            for p in paths {
-                let p = p.trim().trim_matches('"');
-                if p.is_empty() {
-                    continue;
-                }
-                let p = Path::new(p);
-                if p.is_file() && is_ext(p, ".csv") {
-                    self.import_csv(&mut state, p, &mut out)?;
-                    continue;
-                }
-                if (p.is_file() && is_ext(p, ".mat")) || (results && p.is_dir()) {
-                    let files = if p.is_file() { vec![p.to_path_buf()] } else { scan_results(p) };
-                    for f in files {
-                        let name = path_str(Path::new(f.file_name().unwrap_or_default()));
-                        let name = name[..name.len() - 4].to_string();
-                        out.added.extend(push(&mut state, &f, name, Kind::Mat));
+            for item in plan {
+                match item {
+                    Item::Csv(rows) => Self::import_csv(&mut state, rows, &mut out),
+                    Item::Mat(files) => {
+                        for f in files {
+                            let name = path_str(Path::new(f.file_name().unwrap_or_default()));
+                            let name = name[..name.len() - 4].to_string();
+                            out.added.extend(push(&mut state, &f, name, Kind::Mat));
+                        }
                     }
-                    continue;
-                }
-                let items: Vec<(PathBuf, PathBuf)> = if p.is_dir() {
-                    scan_folder(p, include, exclude).into_iter().map(|f| (f.clone(), relpath(&f, p))).collect()
-                } else if p.is_file() && is_nifti(p) {
-                    vec![(p.to_path_buf(), PathBuf::from(p.file_name().unwrap_or_default()))]
-                } else {
-                    continue;
-                };
-                for (path, rel) in items {
-                    out.added.extend(push(&mut state, &path, case_name(&rel), Kind::Nifti));
+                    Item::Nifti(items) => {
+                        for (path, rel) in items {
+                            out.added.extend(push(&mut state, &path, case_name(&rel), Kind::Nifti));
+                        }
+                    }
                 }
             }
         }
@@ -380,8 +393,7 @@ impl Project {
     /// An original-GUI case list: a filled-in Apex counts as confirmed; the
     /// two output columns override the settings for that case.  Names are
     /// relative to the folder the files have in common.
-    fn import_csv(&self, state: &mut State, csv: &Path, out: &mut Added) -> Result<()> {
-        let rows = caselist::read_case_csv(csv)?;
+    fn import_csv(state: &mut State, rows: Vec<caselist::CaseRow>, out: &mut Added) {
         out.missing.extend(rows.iter().filter(|r| !r.path.is_file()).map(|r| path_str(&r.path)));
         let rows: Vec<_> = rows.into_iter().filter(|r| r.path.is_file()).collect();
         let dirs: Vec<PathBuf> = rows.iter().map(|r| r.path.parent().map(Path::to_path_buf).unwrap_or_default()).collect();
@@ -404,7 +416,6 @@ impl Project {
             }
             if new { out.added.push(c.clone()) } else { out.updated.push(c.clone()) }
         }
-        Ok(())
     }
 
     /// The original GUI's GenCSV: one row per NIfTI found, written to

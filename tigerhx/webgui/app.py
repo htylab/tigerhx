@@ -14,6 +14,12 @@ import webbrowser
 from tigerhx.webgui.server import App, serve
 
 
+# pywebview accepts only letters, digits, '_' and spaces before the
+# brackets of a file type (a comma makes the whole dialog fail)
+FILE_TYPES = ('NIfTI case list or result (*.nii;*.nii.gz;*.csv;*.mat)',
+              'NIfTI (*.nii;*.nii.gz)', 'Case list (*.csv)', 'TigerHx result (*.mat)', 'All files (*.*)')
+
+
 class NativeDialogs:
     """File dialogs exposed to the page as window.pywebview.api.*
 
@@ -24,17 +30,35 @@ class NativeDialogs:
 
     _window = None
 
+    def _on_window_thread(self, fn):
+        """pywebview runs these calls on a worker thread.  On Windows a
+        WinForms dialog opened there, owned by the window of another thread,
+        can hang both; Invoke runs it on the window's own thread instead,
+        modal like any other dialog of the window."""
+        form = getattr(self._window, 'native', None)
+        if form is None or not getattr(form, 'InvokeRequired', False):
+            return fn()
+        from System import Func, Type  # pythonnet, present with the WinForms backend
+        box = {}
+
+        def call():
+            try:
+                box['value'] = fn()
+            except Exception as e:  # raised again on the calling thread
+                box['error'] = e
+        form.Invoke(Func[Type](call))
+        if 'error' in box:
+            raise box['error']
+        return box.get('value')
+
     def _dialog(self, kind, **kw):
         import webview
         fd = getattr(webview, 'FileDialog', None)
         dialog = getattr(fd, kind) if fd else getattr(webview, f'{kind}_DIALOG')
-        return list(self._window.create_file_dialog(dialog, **kw) or [])
+        return list(self._on_window_thread(lambda: self._window.create_file_dialog(dialog, **kw)) or [])
 
     def pick_files(self):
-        return self._dialog('OPEN', allow_multiple=True,
-                            file_types=('NIfTI, case list or result (*.nii;*.nii.gz;*.csv;*.mat)',
-                                        'NIfTI (*.nii;*.nii.gz)', 'Case list (*.csv)',
-                                        'TigerHx result (*.mat)', 'All files (*.*)'))
+        return self._dialog('OPEN', allow_multiple=True, file_types=FILE_TYPES)
 
     def pick_folder(self):
         return self._dialog('FOLDER')

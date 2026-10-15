@@ -63,6 +63,28 @@ def test_native_api_exposes_only_the_dialogs():
     assert all(inspect.ismethod(f) for f in public.values())
 
 
+def test_native_dialogs(monkeypatch):
+    # pywebview's own check of file types (webview.util.parse_file_type): a
+    # description with a comma made the whole file dialog fail
+    import re
+    from tigerhx.webgui.app import FILE_TYPES, NativeDialogs
+    pattern = r'^([\w ]+)\((\*(?:\.(?:\w+|\*))*(?:;\*(?:\.(?:\w+|\*))*)*)\)$'
+    assert all(re.search(pattern, f) for f in FILE_TYPES)
+
+    import types
+    monkeypatch.setitem(sys.modules, 'webview', types.SimpleNamespace(
+        FileDialog=types.SimpleNamespace(OPEN=10, FOLDER=20)))
+
+    class Window:  # no WinForms form: the dialog opens on the calling thread
+        def create_file_dialog(self, dialog, **kw):
+            self.got = (dialog, kw)
+            return ('a.nii.gz',)
+    api = NativeDialogs()
+    api._window = Window()
+    assert api.pick_files() == ['a.nii.gz'] and api._window.got[1]['file_types'] == FILE_TYPES
+    assert api.pick_folder() == ['a.nii.gz']
+
+
 def test_auth_required(server):
     app, url = server
     base = url.split('/?')[0]
