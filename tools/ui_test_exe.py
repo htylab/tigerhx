@@ -138,14 +138,44 @@ async def check_alive(gui, page, what):
 
 
 # ---------------------------------------------------------------- native dialogs
-def find_dialog(gui, timeout=20):
+def dialogs(gui):
+    return [w for w in gui.windows() if w.class_name() == '#32770']
+
+
+def find_dialog(gui, title, ignore=(), timeout=20):
+    """A new, enabled dialog with this title (not one still closing)."""
     end = time.time() + timeout
-    while time.time() < end:
-        for w in gui.windows():
-            if w.class_name() == '#32770':
-                return w
+    while True:
+        for w in dialogs(gui):
+            try:
+                if w.handle not in ignore and w.window_text() == title and w.is_enabled():
+                    return w
+            except Exception:  # closed meanwhile
+                pass
+        if time.time() >= end:
+            return None
         time.sleep(0.25)
-    return None
+
+
+def wait_closed(gui, timeout=15):
+    end = time.time() + timeout
+    while dialogs(gui):
+        if time.time() >= end:
+            return False
+        time.sleep(0.25)
+    return True
+
+
+def describe(gui):
+    """Every window of the program, for a failure message."""
+    out = []
+    for w in gui.windows():
+        try:
+            out.append(f'{w.class_name()!r} {w.window_text()!r} enabled={w.is_enabled()} '
+                       f'hung={bool(ctypes.windll.user32.IsHungAppWindow(w.handle))}')
+        except Exception as e:
+            out.append(f'? {e}')
+    return '\n  '.join(out)
 
 
 def spec(w):
@@ -189,20 +219,22 @@ def answer(dlg, steps):
         time.sleep(0.8)
 
 
-async def pick(gui, page, selector, steps, what):
+OPEN, FOLDER = 'Open', 'Select Folder'  # the dialogs' titles on English Windows
+
+
+async def pick(gui, page, selector, title, steps, what):
     log('--', what)
+    assert await asyncio.to_thread(wait_closed, gui), f'{what}: a dialog is still open:\n  {describe(gui)}'
+    before = {w.handle for w in dialogs(gui)}
     await page.click(selector, no_wait_after=True)
-    dlg = await asyncio.to_thread(find_dialog, gui)
-    assert dlg is not None, f'{what}: no file dialog appeared'
-    log('   dialog:', repr(dlg.window_text()))
-    await asyncio.to_thread(answer, dlg, steps)
-    for _ in range(40):
-        if find_dialog(gui, 0) is None:
-            break
-        await asyncio.sleep(0.25)
-    else:
-        raise AssertionError(f'{what}: the dialog did not close')
-    await asyncio.sleep(0.8)
+    dlg = await asyncio.to_thread(find_dialog, gui, title, before)
+    assert dlg is not None, f'{what}: no {title!r} dialog appeared; windows:\n  {describe(gui)}'
+    try:
+        await asyncio.to_thread(answer, dlg, steps)
+    except Exception as e:
+        raise AssertionError(f'{what}: {e!r}; windows:\n  {describe(gui)}')
+    assert await asyncio.to_thread(wait_closed, gui), f'{what}: the dialog did not close:\n  {describe(gui)}'
+    await asyncio.sleep(0.5)
     await check_alive(gui, page, what)
 
 
@@ -228,21 +260,21 @@ async def scenarios(gui, page, d, shots):
     await check_alive(gui, page, 'start')
     await shot('00_start')
 
-    await pick(gui, page, '#btnAddFiles', None, 'files: cancel')
+    await pick(gui, page, '#btnAddFiles', OPEN, None, 'files: cancel')
     assert n() == 0
-    await pick(gui, page, '#btnAddFiles', [os.path.join(d['files'], 'a1_cine.nii.gz')], 'files: one NIfTI')
+    await pick(gui, page, '#btnAddFiles', OPEN, [os.path.join(d['files'], 'a1_cine.nii.gz')], 'files: one NIfTI')
     await wait_for(lambda: n() == 1, 'one case added')
-    await pick(gui, page, '#btnAddFiles', [d['files'], '"a2_cine.nii.gz" "a3_cine.nii.gz"'], 'files: two NIfTI')
+    await pick(gui, page, '#btnAddFiles', OPEN, [d['files'], '"a2_cine.nii.gz" "a3_cine.nii.gz"'], 'files: two NIfTI')
     await wait_for(lambda: n() == 3, 'two more cases')
-    await pick(gui, page, '#btnAddFiles', [os.path.join(d['csv'], 'list.csv')], 'files: case list CSV')
+    await pick(gui, page, '#btnAddFiles', OPEN, [os.path.join(d['csv'], 'list.csv')], 'files: case list CSV')
     await wait_for(lambda: n() == 4, 'the CSV case')
     c1 = next(c for c in gui.cases() if c['name'] == 'c1')
     assert c1['apex_slice'] == 4 and c1['apex_confirmed'], c1
     await shot('01_files')
 
-    await pick(gui, page, '#btnAddFolder', None, 'folder: cancel')
+    await pick(gui, page, '#btnAddFolder', FOLDER, None, 'folder: cancel')
     assert await page.evaluate("!document.getElementById('addDialog').open")
-    await pick(gui, page, '#btnAddFolder', [d['tree']], 'folder: choose')
+    await pick(gui, page, '#btnAddFolder', FOLDER, [d['tree']], 'folder: choose')
     await page.wait_for_function("document.getElementById('addDialog').open", timeout=10000)
     await shot('02_folder_dialog')
     await page.fill('#addInclude', 'cine')
@@ -251,7 +283,7 @@ async def scenarios(gui, page, d, shots):
     await wait_for(lambda: n() == 6, 'folder cases')
     await check_alive(gui, page, 'folder: add')
 
-    await pick(gui, page, '#btnAddFolder', [d['tree']], 'folder: GenCSV')
+    await pick(gui, page, '#btnAddFolder', FOLDER, [d['tree']], 'folder: GenCSV')
     await page.wait_for_function("document.getElementById('addDialog').open", timeout=10000)
     await page.click('#btnGenCsv')
     await wait_for(lambda: os.path.isdir(os.path.join(gui.ws, 'csv')) and os.listdir(os.path.join(gui.ws, 'csv')),
@@ -259,7 +291,8 @@ async def scenarios(gui, page, d, shots):
     assert n() == 6
 
     for k in range(4):
-        await pick(gui, page, '#btnAddFiles' if k % 2 else '#btnAddFolder', None, f'open and cancel #{k + 1}')
+        await pick(gui, page, '#btnAddFiles' if k % 2 else '#btnAddFolder', OPEN if k % 2 else FOLDER, None,
+                   f'open and cancel #{k + 1}')
 
     log('-- segment')
     gui.api('/api/settings', {'model': MODEL, 'save_mat': True})
@@ -295,7 +328,7 @@ async def scenarios(gui, page, d, shots):
     await check_alive(gui, page, 'settings')
 
     out = gui.api('/api/state')['output_dir']
-    await pick(gui, page, '#btnOpenResults', [out], 'open results folder')
+    await pick(gui, page, '#btnOpenResults', FOLDER, [out], 'open results folder')
     await wait_for(lambda: any(c['kind'] == 'mat' for c in gui.cases()), 'opened results')
     await wait_for(lambda: all(c['status'] in ('review', 'done') for c in gui.cases()), 'results read', 120)
     await shot('05_results')
@@ -307,7 +340,7 @@ async def scenarios(gui, page, d, shots):
     await wait_for(lambda: all(c['id'] != mat['id'] for c in gui.cases()), 'removed')
     await check_alive(gui, page, 'remove')
 
-    await pick(gui, page, '#btnAddFiles', [os.path.join(d['files'], 'a1_cine.nii.gz')], 'files: again after all that')
+    await pick(gui, page, '#btnAddFiles', OPEN, [os.path.join(d['files'], 'a1_cine.nii.gz')], 'files: again after all that')
 
 
 async def run(exe, shots):
