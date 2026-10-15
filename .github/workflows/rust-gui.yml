@@ -76,7 +76,7 @@ jobs:
     # the real window: file and folder dialogs, every way of adding cases
     - name: UI test
       run: |
-        pip install playwright pywinauto pillow
+        pip install playwright pywinauto pillow psutil
         python tools/ui_test_exe.py dist/tigerhxgui.exe ui-shots
     - uses: actions/upload-artifact@v4
       if: always()

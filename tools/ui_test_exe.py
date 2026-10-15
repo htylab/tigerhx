@@ -96,9 +96,18 @@ class Gui:
     def cases(self):
         return self.api('/api/state')['cases']
 
+    def pids(self):
+        # a one-file PyInstaller build runs the program in a child process
+        import psutil
+        try:
+            return {self.proc.pid} | {c.pid for c in psutil.Process(self.proc.pid).children(recursive=True)}
+        except psutil.NoSuchProcess:
+            return set()
+
     def windows(self):
         from pywinauto import Desktop
-        return Desktop(backend='win32').windows(process=self.proc.pid, visible_only=True)
+        return [w for pid in self.pids()
+                for w in Desktop(backend='win32').windows(process=pid, visible_only=True)]
 
     def main_window(self):
         for w in self.windows():
@@ -139,6 +148,19 @@ def find_dialog(gui, timeout=20):
     return None
 
 
+def spec(w):
+    from pywinauto import Desktop
+    return Desktop(backend='win32').window(handle=w.handle)
+
+
+def button(dlg, control_id):
+    for b in dlg.descendants(class_name='Button'):
+        if b.control_id() == control_id and b.is_visible():
+            return b
+    dlg.print_control_identifiers()
+    raise AssertionError(f'no button {control_id} in the dialog')
+
+
 def name_box(dlg):
     """The File name / Folder box of a common item dialog."""
     edits = [e for e in dlg.descendants(class_name='Edit') if e.is_visible()]
@@ -154,15 +176,16 @@ def name_box(dlg):
 def answer(dlg, steps):
     """steps: None to cancel, else texts typed into the name box, each
     confirmed with the OK button (a folder first navigates there)."""
-    dlg.wait('ready', timeout=10)
+    spec(dlg).wait('ready', timeout=10)
+    time.sleep(0.5)
     if steps is None:
-        dlg.child_window(control_id=2, class_name='Button').click()
+        button(dlg, 2).click()
         return
     for text in steps:
         box = name_box(dlg)
         box.set_edit_text(text)
         time.sleep(0.3)
-        dlg.child_window(control_id=1, class_name='Button').click()
+        button(dlg, 1).click()
         time.sleep(0.8)
 
 

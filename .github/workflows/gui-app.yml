@@ -77,7 +77,7 @@ jobs:
     - name: UI test
       if: matrix.py == 'tigerhxgui'
       run: |
-        pip install playwright pywinauto pillow
+        pip install playwright pywinauto pillow psutil
         python tools/ui_test_exe.py dist/tigerhxgui.exe ui-shots
     - uses: actions/upload-artifact@v4
       if: always() && matrix.py == 'tigerhxgui'
