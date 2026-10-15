@@ -73,3 +73,15 @@ jobs:
       with:
         name: ${{ matrix.py }}-${{ matrix.os }}
         path: dist/*
+    # the real window: file and folder dialogs, every way of adding cases
+    - name: UI test
+      if: matrix.py == 'tigerhxgui'
+      run: |
+        pip install playwright pywinauto pillow
+        python tools/ui_test_exe.py dist/tigerhxgui.exe ui-shots
+    - uses: actions/upload-artifact@v4
+      if: always() && matrix.py == 'tigerhxgui'
+      with:
+        name: ui-test-${{ matrix.py }}
+        path: ui-shots
+        if-no-files-found: ignore
