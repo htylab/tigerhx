@@ -43,14 +43,14 @@ workspace folder, `~/TigerHx` by default (`-w <folder>` to change).
 
 Workflow:
 
-1. **＋ Files / ＋ Folder** – add cine NIfTI files; folders are searched
+1. **＋ Files / CSV, ＋ Folder** – add cine NIfTI files; folders are searched
    recursively with optional include / exclude keywords. A case list of the
    previous GUI (`.csv` with `Filename, Apex, mat_in_inputdir,
    nii_in_inputdir`) can be added too: its Apex values are taken as confirmed
    and a row's two flags override the global settings for that case (blank =
    setting). Files named in the CSV that do not exist are listed in the Log.
-   **Generate CSV (GenCSV)** in the same panel writes such a list for the
-   folders entered (`<workspace>/csv/files_<date>.csv`, Apex left blank) to
+   **Only write a CSV** (GenCSV) in the folder dialog writes such a list for
+   the folders entered (`<workspace>/csv/files_<date>.csv`, Apex left blank) to
    fill in with Excel and add again.
 2. **▶ Segment** – runs the selected model on all pending (or the checked)
    cases. Models are downloaded on first use; *Settings → Download all
@@ -63,22 +63,30 @@ Workflow:
    frame slider and ED/ES jump. Overlays are drawn as smooth outlines rather
    than voxel blocks; segments are numbered and coloured by wall, so a wall
    keeps its colour at every level.
-   The first apical slice and the slice order (base→apex or apex→base) are
-   suggested automatically; check them on the images and use
-   *Use current slice as apex* or *Confirm suggestion*. AHA 17 and the 6/4
-   sectors are recomputed instantly; both are in the `.mat`, so either can be
-   used.
+   The slice bar below the image has one button per slice, coloured by level
+   (basal, mid, apical, apex cap) with a marker at the first apical slice;
+   click a slice to show it. The first apical slice and the slice order
+   (base→apex or apex→base) are suggested automatically; check them on the
+   images and use *Use current slice* or *Confirm*. *Confirm, next →* moves on
+   to the next case still to confirm, so a batch can be reviewed in one go.
+   AHA 17 and the 6/4 sectors are recomputed instantly; both are in the
+   `.mat`, so either can be used.
 4. **Segmentation check** (right panel) – slices whose segmentation is worth
    a look: a cavity larger at ES than at ED (often a structure outside the
    ventricle), a cavity missing between two slices that have it, and a
    basal-most LV at ES that is poorly enclosed by myocardium (the LV label
    probably covers atrium). *Show* jumps to the frame and slice; the case
-   list shows the number of warnings (⚠) or ✓.
+   list shows the number of warnings (⚠) or ✓, and can be filtered to the
+   cases still to confirm, flagged, done and so on.
 
 **Open results (.mat)** opens a folder of `*pred*.mat` files written by this
 or the previous GUI, read-only: image and labels come from the file and the
 apex from its `LVM` sectors. **Log** (status bar) shows what was segmented,
 opened or skipped, and errors.
+
+Keyboard: ← → frame, ↑ ↓ slice, Space play, **A** use the current slice as
+apex, **Enter** confirm and go to the next case, **N / P** next / previous
+case, **M** single / all slices, **O** next overlay, **?** shows the list.
 
 Files written per case in `<workspace>/cases/<name>/`: `seg.nii.gz`
 (labels 1–3), `aha17.nii.gz` (AHA segments 1–17 on the myocardium) and

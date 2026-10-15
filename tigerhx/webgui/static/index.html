@@ -8,59 +8,50 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand">TigerHx</div>
+  <div class="brand"><span class="brand-mark" aria-hidden="true"></span>TigerHx</div>
   <div class="group">
     <button id="btnAddFiles" data-i18n="addFiles"></button>
     <button id="btnAddFolder" data-i18n="addFolder"></button>
     <button id="btnOpenResults" data-i18n="openResults"></button>
   </div>
+  <div class="divider" aria-hidden="true"></div>
   <div class="group">
-    <label><span data-i18n="model"></span> <select id="model"></select></label>
+    <label class="model-pick"><span data-i18n="model"></span><select id="model"></select></label>
     <button id="btnRun" class="primary"></button>
-    <button id="btnStop" data-i18n="stop"></button>
+    <button id="btnStop" class="hidden" data-i18n="stop"></button>
   </div>
   <div class="spacer"></div>
   <div class="group">
+    <button id="btnHelp" class="icon" data-i18n-title="shortcuts" aria-label="?">?</button>
     <button id="btnSettings" data-i18n="settings"></button>
     <button id="btnLang"></button>
   </div>
 </header>
 
-<div id="addPanel" class="panel hidden">
-  <div class="field"><span data-i18n="pathsLabel"></span><textarea id="addPaths" spellcheck="false"></textarea></div>
-  <div class="field"><span data-i18n="include"></span><input type="text" id="addInclude" placeholder="cine"></div>
-  <div class="field"><span data-i18n="exclude"></span><input type="text" id="addExclude" value="mask, _seg, aha17"></div>
-  <button id="btnAddConfirm" class="primary" data-i18n="add"></button>
-  <button id="btnGenCsv" data-i18n="genCsv"></button>
-  <button id="btnAddCancel" data-i18n="cancel"></button>
-</div>
-
-<div id="settingsPanel" class="panel hidden">
-  <label class="check"><input type="checkbox" data-setting="save_mat"> <span data-i18n="saveMat"></span></label>
-  <label class="check"><input type="checkbox" data-setting="mat_in_inputdir"> <span data-i18n="matInput"></span></label>
-  <label class="check"><input type="checkbox" data-setting="nii_in_inputdir"> <span data-i18n="niiInput"></span></label>
-  <label class="field-inline"><span data-i18n="outputDir"></span>
-    <input type="text" id="outputDir" class="mono" spellcheck="false"></label>
-  <button id="btnOpenOutput" class="small" data-i18n="openFolder"></button>
-  <span class="muted"><span data-i18n="csvDir"></span></span>
-  <button id="btnOpenCsv" class="small" data-i18n="openFolder"></button>
-  <span class="muted"><span data-i18n="workspace"></span>: <span id="workspace" class="mono"></span></span>
-  <button id="btnOpenWs" class="small" data-i18n="openFolder"></button>
-  <button id="btnDownloadAll" class="small" data-i18n="downloadAll"></button>
-</div>
-
 <main>
   <section class="case-section">
     <div class="section-head">
-      <input type="checkbox" id="checkAll" aria-label="select all">
+      <input type="checkbox" id="checkAll" data-i18n-title="selectAll">
       <span data-i18n="cases"></span> <span id="caseCount" class="count"></span>
     </div>
+    <div id="caseFilters" class="filters"></div>
     <div class="case-list">
-      <table class="cases">
-        <thead><tr><th></th><th data-i18n="colName"></th><th data-i18n="colStatus"></th><th class="num" data-i18n="colApex"></th><th class="num" data-i18n="colChecks"></th></tr></thead>
-        <tbody id="caseBody"></tbody>
-      </table>
-      <div id="caseEmpty" class="empty" data-i18n="emptyCases"></div>
+      <ul id="caseBody" class="cases"></ul>
+      <div id="caseEmpty" class="empty-start hidden">
+        <div class="empty-title" data-i18n="emptyTitle"></div>
+        <ol class="steps">
+          <li data-i18n="step1"></li>
+          <li data-i18n="step2"></li>
+          <li data-i18n="step3"></li>
+        </ol>
+        <div class="empty-actions">
+          <button id="btnEmptyFiles" class="primary" data-i18n="addFiles"></button>
+          <button id="btnEmptyFolder" data-i18n="addFolder"></button>
+          <button id="btnEmptyResults" data-i18n="openResults"></button>
+        </div>
+        <div class="empty-note" data-i18n="emptyNote"></div>
+      </div>
+      <div id="caseNoMatch" class="empty hidden" data-i18n="noMatch"></div>
     </div>
     <div class="case-foot">
       <button id="btnRemove" class="small" data-i18n="remove"></button>
@@ -78,7 +69,7 @@
         <button data-v="heart" data-i18n="zoomHeart"></button>
         <button data-v="full" data-i18n="zoomFull"></button>
       </span>
-      <label><span data-i18n="overlay"></span>
+      <label class="tool" data-i18n-title="overlay"><span class="tool-label" data-i18n="overlay"></span>
         <select id="overlayMode">
           <option value="seg" data-i18n="ovSeg"></option>
           <option value="edge" data-i18n="ovEdge"></option>
@@ -88,9 +79,9 @@
           <option value="rv" data-i18n="ovRV"></option>
           <option value="none" data-i18n="ovNone"></option>
         </select></label>
-      <label><span data-i18n="cmap"></span>
+      <label class="tool" data-i18n-title="cmap"><span class="tool-label" data-i18n="cmap"></span>
         <select id="cmap"><option value="gray">gray</option><option value="viridis">viridis</option></select></label>
-      <label class="check"><span data-i18n="opacity"></span>
+      <label class="tool" data-i18n-title="opacity"><span class="tool-label" data-i18n="opacity"></span>
         <input type="range" id="opacity" min="0" max="1" step="0.05" value="0.45"></label>
     </div>
     <div class="canvas-wrap">
@@ -101,47 +92,125 @@
       <div id="legend" class="legend-overlay hidden"></div>
     </div>
     <div class="viewer-bar">
-      <button id="btnPlay" class="small" aria-label="play">▶</button>
-      <span data-i18n="frame"></span>
+      <button id="btnPlay" class="small icon" data-i18n-title="playKey" aria-label="play">▶</button>
+      <span class="bar-label" data-i18n="frame"></span>
       <input type="range" id="frame" min="0" max="0" step="1" value="0">
-      <span id="frameText" class="mono"></span>
+      <span id="frameText" class="mono num-text"></span>
       <button id="btnED" class="small">ED</button>
       <button id="btnES" class="small">ES</button>
-      <span class="muted">|</span>
-      <span data-i18n="slice"></span>
-      <button id="btnSlicePrev" class="small" aria-label="previous slice">◀</button>
-      <span id="sliceText" class="mono"></span>
-      <button id="btnSliceNext" class="small" aria-label="next slice">▶</button>
-      <span id="levelTag" class="tag hidden"></span>
     </div>
-    <div class="viewer-bar apex-bar">
-      <span data-i18n="apexStart"></span>
-      <span id="apexValue" class="apex-value">–</span>
-      <span id="apexTag" class="tag hidden"></span>
-      <button id="btnSetApex" class="small" data-i18n="setApex"></button>
-      <button id="btnConfirmApex" class="small" data-i18n="confirmApex"></button>
-      <label><span data-i18n="sliceOrder"></span>
-        <select id="sliceOrder">
-          <option value="1" data-i18n="baseFirst"></option>
-          <option value="0" data-i18n="apexFirst"></option>
-        </select></label>
+    <div class="viewer-bar slice-bar">
+      <span class="bar-label" data-i18n="slice"></span>
+      <button id="btnSlicePrev" class="small icon" data-i18n-title="sliceKey" aria-label="previous slice">◀</button>
+      <div id="ladder" class="ladder" role="group"></div>
+      <button id="btnSliceNext" class="small icon" data-i18n-title="sliceKey" aria-label="next slice">▶</button>
+      <span id="sliceText" class="mono num-text"></span>
+      <div class="ladder-legend" aria-hidden="true">
+        <span><i class="l-basal"></i><span data-i18n="lv_basal"></span></span>
+        <span><i class="l-mid"></i><span data-i18n="lv_mid"></span></span>
+        <span><i class="l-apical"></i><span data-i18n="lv_apical"></span></span>
+        <span><i class="l-apex"></i><span data-i18n="lv_apex"></span></span>
+      </div>
+    </div>
+    <div id="apexBar" class="apex-bar">
+      <div class="apex-info">
+        <span class="apex-label" data-i18n="apexStart"></span>
+        <span id="apexValue" class="apex-value">–</span>
+        <span id="apexTag" class="tag hidden"></span>
+      </div>
+      <div class="apex-actions">
+        <label class="tool"><span data-i18n="sliceOrder"></span>
+          <select id="sliceOrder">
+            <option value="1" data-i18n="baseFirst"></option>
+            <option value="0" data-i18n="apexFirst"></option>
+          </select></label>
+        <button id="btnSetApex" data-i18n-title="setApexKey"></button>
+        <button id="btnConfirmApex" class="primary" data-i18n-title="confirmKey"></button>
+      </div>
     </div>
   </section>
 
   <section class="results">
-    <div class="section-head" data-i18n="results"></div>
+    <div class="section-head" data-i18n="details"></div>
     <div class="body" id="results">
       <div class="empty" data-i18n="noResults"></div>
     </div>
   </section>
 </main>
 
-<div id="logPanel" class="log-panel hidden"><div id="logBody" class="mono"></div></div>
+<div id="logPanel" class="log-panel hidden" role="log">
+  <div class="log-head"><span data-i18n="log"></span><span class="spacer"></span>
+    <button id="btnLogClose" class="small" data-i18n="close"></button></div>
+  <div id="logBody" class="mono"></div>
+</div>
 <footer class="statusbar">
   <button id="btnLog" class="small" data-i18n="log"></button>
+  <span id="topProgress" class="status-progress hidden"><span class="bar"><i id="topProgressBar"></i></span></span>
   <span id="statusMain"></span>
   <span id="statusMsg"></span>
 </footer>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<dialog id="addDialog">
+  <form method="dialog" class="dlg">
+    <h2 id="addTitle"></h2>
+    <p class="dlg-note" id="addNote"></p>
+    <label class="field"><span data-i18n="pathsLabel"></span>
+      <textarea id="addPaths" spellcheck="false" rows="4"></textarea></label>
+    <div class="field-row">
+      <label class="field"><span data-i18n="include"></span><input type="text" id="addInclude" placeholder="cine"></label>
+      <label class="field"><span data-i18n="exclude"></span><input type="text" id="addExclude" value="mask, _seg, aha17"></label>
+    </div>
+    <p class="dlg-note" data-i18n="filterNote"></p>
+    <div class="dlg-actions">
+      <button type="button" id="btnGenCsv" data-i18n-title="genCsvNote" data-i18n="genCsv"></button>
+      <span class="spacer"></span>
+      <button type="button" id="btnAddCancel" data-i18n="cancel"></button>
+      <button type="button" id="btnAddConfirm" class="primary" data-i18n="add"></button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="settingsDialog">
+  <form method="dialog" class="dlg">
+    <h2 data-i18n="settings"></h2>
+    <fieldset>
+      <legend data-i18n="secOutputs"></legend>
+      <label class="check"><input type="checkbox" data-setting="save_mat"> <span data-i18n="saveMat"></span></label>
+      <div class="indent">
+        <label class="field"><span data-i18n="outputDir"></span>
+          <span class="input-row"><input type="text" id="outputDir" class="mono" spellcheck="false">
+          <button type="button" id="btnOpenOutput" data-i18n="openFolder"></button></span></label>
+      </div>
+      <label class="check"><input type="checkbox" data-setting="mat_in_inputdir"> <span data-i18n="matInput"></span></label>
+      <label class="check"><input type="checkbox" data-setting="nii_in_inputdir"> <span data-i18n="niiInput"></span></label>
+      <p class="dlg-note" data-i18n="csvOverride"></p>
+    </fieldset>
+    <fieldset>
+      <legend data-i18n="secFolders"></legend>
+      <div class="kv"><span data-i18n="workspace"></span><span id="workspace" class="mono"></span>
+        <button type="button" id="btnOpenWs" class="small" data-i18n="openFolder"></button></div>
+      <div class="kv"><span data-i18n="csvDir"></span><span id="csvDirText" class="mono"></span>
+        <button type="button" id="btnOpenCsv" class="small" data-i18n="openFolder"></button></div>
+    </fieldset>
+    <fieldset>
+      <legend data-i18n="secModels"></legend>
+      <div class="kv"><span id="modelSummary"></span><span></span>
+        <button type="button" id="btnDownloadAll" class="small" data-i18n="downloadAll"></button></div>
+    </fieldset>
+    <div class="dlg-actions"><span class="spacer"></span>
+      <button value="close" class="primary" data-i18n="close"></button></div>
+  </form>
+</dialog>
+
+<dialog id="helpDialog">
+  <form method="dialog" class="dlg">
+    <h2 data-i18n="shortcuts"></h2>
+    <table class="keys" id="keysTable"></table>
+    <div class="dlg-actions"><span class="spacer"></span>
+      <button value="close" class="primary" data-i18n="close"></button></div>
+  </form>
+</dialog>
 
 <script src="/static/vendor/niivue.umd.js"></script>
 <script src="/static/app.js"></script>

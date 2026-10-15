@@ -3,94 +3,132 @@
 // ---------------------------------------------------------------- strings
 const I18N = {
   zh: {
-    addFiles: '＋ 檔案', addFolder: '＋ 資料夾', model: '模型', stop: '■ 停止',
-    runAll: n => `▶ 分割待處理 (${n})`, runChecked: n => `▶ 分割已選 (${n})`,
+    addFiles: '＋ 檔案 / CSV', addFolder: '＋ 資料夾', model: '模型', stop: '■ 停止',
+    runAll: n => `▶ 分割 ${n} 個待處理`, runChecked: n => `▶ 分割已勾選 (${n})`, runNone: '▶ 分割',
     settings: '設定', pathsLabel: '檔案或資料夾路徑（每行一個）',
-    include: '包含關鍵字（逗號分隔，空白=全部）', exclude: '排除關鍵字', add: '加入', cancel: '取消',
-    saveMat: '輸出 .mat 到輸出資料夾（舊版格式）', matInput: '.mat 也存到原始資料夾',
-    niiInput: '分割 .nii.gz 存到原始資料夾', workspace: '工作資料夾', openFolder: '開啟資料夾',
-    cases: '病例', colName: '名稱', colStatus: '狀態', colApex: 'Apex', colChecks: '檢查',
-    emptyCases: '按「＋ 檔案」或「＋ 資料夾」加入 cine NIfTI。\n不需要先準備 CSV，也不用先填 Apex：分割完成後再看著影像確認。',
-    remove: '移除選取', openCaseFolder: '開啟病例資料夾',
-    viewSingle: '單張', viewMosaic: '全部 slice', zoomHeart: '放大心臟', zoomFull: '整張影像',
+    include: '只要路徑含有（逗號分隔，空白 = 全部）', exclude: '排除路徑含有', add: '加入', cancel: '取消', close: '關閉',
+    saveMat: '輸出舊版格式 .mat', matInput: '.mat 也存一份到原始影像資料夾',
+    niiInput: '分割結果 .nii.gz 存到原始影像資料夾', workspace: '工作資料夾', openFolder: '開啟',
+    cases: '病例', selectAll: '全選',
+    emptyTitle: '開始分割', step1: '加入 cine NIfTI、資料夾，或舊版的 CSV 清單', step2: '按「▶ 分割」，模型會自動下載',
+    step3: '逐一確認 Apical 起始 slice，完成後輸出 .mat',
+    emptyNote: 'CSV 裡已填好的 Apex 會直接視為已確認。也可以用「開啟結果」查看舊版 GUI 的 .mat。',
+    noMatch: '沒有符合篩選的病例。',
+    f_all: '全部', f_review: '待確認', f_warn: '有警示', f_pending: '未分割', f_done: '完成', f_error: '錯誤',
+    remove: '移除勾選', openCaseFolder: '開啟病例資料夾',
+    viewSingle: '單張', viewMosaic: '全部 slice', zoomHeart: '心臟', zoomFull: '整張',
     ovSeg: '分割', ovEdge: '輪廓', ovAha: 'AHA 17', ovNone: '無疊圖',
-    opacity: '透明度', hintSelect: '從左側選一個病例', frame: 'Frame', slice: 'Slice',
-    apexStart: 'Apical 起始 slice', setApex: '把目前 slice 設為 Apex', confirmApex: '確認建議值',
-    sliceOrder: 'Slice 順序', baseFirst: 'base → apex', apexFirst: 'apex → base',
-    results: '分割檢查', noResults: '分割完成後會在這裡列出需要看一下的 slice。',
-    st_pending: '待處理', st_queued: '排隊中', st_running: '分割中', st_review: '待確認 Apex',
+    opacity: '透明度', hintSelect: '從左側選一個病例', hintEmpty: '加入病例後，影像和分割會顯示在這裡', frame: 'Frame', slice: 'Slice',
+    apexStart: 'Apical 起始 slice', setApex: '設為目前 slice', confirmApex: '✓ 確認', confirmNext: '✓ 確認，下一個 →',
+    sliceOrder: '順序', baseFirst: 'base → apex', apexFirst: 'apex → base',
+    details: '病例資訊', noResults: '選一個病例後，這裡會顯示它的資訊與建議檢查的 slice。',
+    st_pending: '未分割', st_queued: '排隊中', st_running: '分割中', st_review: '待確認',
     st_done: '完成', st_error: '錯誤',
-    suggested: '自動建議', confirmed: '已確認',
+    suggested: '自動建議，請確認', confirmed: '已確認',
     lv_basal: 'basal', lv_mid: 'mid', lv_apical: 'apical', lv_apex: 'apex cap',
     added: n => `加入 ${n} 個病例`, queued: n => `${n} 個病例排入佇列`,
     downloading: (m, p) => `下載模型 ${m} … ${p}`, runningCase: (n, p) => `分割中：${n} ${p}`,
-    queueLeft: n => `，佇列剩 ${n}`, idle: '待命', apexSaved: k => `Apex 設為 slice ${k}，AHA 已重算`,
+    queueLeft: n => `（佇列還有 ${n} 個）`, idle: '待命', apexSaved: k => `Apex 設為 slice ${k}，AHA 與 6/4 分區已重算`,
+    allConfirmed: '所有病例的 Apex 都已確認 ✓', nextCase: n => `已確認，下一個：${n}`,
     confirmRemove: n => `從清單移除 ${n} 個病例？（不會刪除檔案）`,
-    notSegmented: '尚未分割。', error: '錯誤',
+    notSegmented: '尚未分割。按上方「▶ 分割」開始。', error: '錯誤',
     lblLV: 'LV 血池', lblMYO: '心肌', lblRV: 'RV 血池', lblEndo: 'LV 心內膜', lblEpi: 'LV 心外膜',
     ovSectors: '6/4 分區', ovLV: 'LV', ovRV: 'RV', overlay: '疊圖', cmap: '色表',
-    openResults: '開啟結果 (.mat)', genCsv: '產生 CSV (GenCSV)', resultsPrompt: '含 *pred*.mat 的資料夾',
+    openResults: '開啟結果 (.mat)', genCsv: '只產生 CSV', resultsPrompt: '含 *pred*.mat 的資料夾',
+    genCsvNote: '不加入病例，只把找到的檔案寫成 CSV（Apex 欄空白），在 Excel 填好後再用「＋ 檔案 / CSV」加入',
     addedFull: (a, u, m) => `加入 ${a} 個病例` + (u ? `，更新 ${u} 個` : '') + (m ? `，${m} 個檔案找不到（見 Log）` : ''),
-    genCsvDone: (n, p) => `GenCSV：${n} 個檔案 → ${p}（填好 Apex 後用「＋ 檔案」加入這個 CSV）`,
+    genCsvDone: (n, p) => `GenCSV：${n} 個檔案 → ${p}（填好 Apex 後用「＋ 檔案 / CSV」加入）`,
+    addTitleFiles: '加入檔案', addTitleFolder: '加入資料夾',
+    addNoteBrowser: '貼上 NIfTI、CSV 或資料夾的完整路徑。資料夾會往下搜尋所有子資料夾。',
+    addNoteFolder: '會搜尋資料夾裡（含子資料夾）所有 .nii / .nii.gz。',
+    filterNote: '例如只要 cine 影像：包含填 cine；排除 mask, _seg 可避開標註檔。',
+    secOutputs: '輸出', secFolders: '資料夾', secModels: '模型',
+    csvOverride: 'CSV 清單裡每一列的 mat_in_inputdir / nii_in_inputdir 會覆蓋這兩個設定。',
     outputDir: '.mat 輸出資料夾', outputDirHint: '空白 = 工作資料夾/output', csvDir: 'CSV 資料夾',
     downloadAll: '下載全部模型', downloadStarted: n => (n ? `開始下載 ${n} 個模型` : '全部模型都已下載'),
-    log: 'Log', kindMat: '舊結果', matNote: '舊版 GUI 的結果（唯讀）：apex 取自其 6/4 分區；不會寫出任何檔案。',
-    csvNote: '來自 CSV：', apexFromCsv: 'apex 已確認', ownOutputs: (m, n) => `.mat 存原始資料夾 ${m}、.nii.gz 存原始資料夾 ${n}`,
+    modelsDownloaded: (a, n) => `已下載 ${a} / ${n} 個模型`,
+    log: 'Log', kindMat: '舊結果', matNote: '舊版 GUI 的結果（唯讀）：apex 取自其 6/4 分區，不會寫出任何檔案。',
+    csvNote: '來自 CSV：', ownOutputs: (m, n) => `.mat 存原始資料夾 ${m}、.nii.gz 存原始資料夾 ${n}`,
     yes: '是', no: '否', sectorsLegend: (n) => `${n} 分區`,
     wall_anterior: '前壁', wall_anteroseptal: '前間隔', wall_inferoseptal: '下間隔', wall_inferior: '下壁',
     wall_inferolateral: '下側壁', wall_anterolateral: '前側壁', wall_septal: '間隔', wall_lateral: '側壁', wall_apex: '心尖',
     modelMissing: '（首次使用時下載）',
-    phases: (ed, es) => `ED frame ${ed} · ES frame ${es}（LV 血池最大 / 最小）`,
-    checksTitle: '建議檢查', show: '查看', flagged: '有警示',
+    dtFile: '檔案', dtModel: '模型', dtPhases: 'ED / ES', dtSize: '大小',
+    phases: (ed, es) => `frame ${ed} / ${es}`, phasesNote: 'LV 血池最大 / 最小',
+    checksTitle: '建議檢查', noChecks: '沒有需要特別看的 slice', show: '查看', flagged: '有警示',
     chkBigger: (z, ch, es, ed) => `slice ${z}：ES 的 ${ch} 比 ED 大（${es} vs ${ed} mm²），可能標到心室外的結構`,
     chkGap: (z, ph, ch, a, n) => `slice ${z}：${ph} 的 ${ch} 疑似漏標（${a} mm²，鄰近 slice ${n} mm²）`,
     chkRing: (z, p) => `slice ${z}：ES 最基底的 LV 只有 ${p}% 被心肌包住，LV 標記可能已進入心房`,
-    outputs: '輸出檔案',
+    outputs: '輸出檔案', openOutput: '開啟 .mat 輸出資料夾',
+    shortcuts: '快捷鍵', playKey: '播放 / 暫停（空白鍵）', sliceKey: '上一個 / 下一個 slice（↑ ↓）',
+    setApexKey: '把目前的 slice 設為 Apical 起始（A）', confirmKey: '確認 Apex，並跳到下一個待確認的病例（Enter）',
+    k_frame: '上一個 / 下一個 frame', k_slice: '上一個 / 下一個 slice', k_play: '播放 / 暫停',
+    k_apex: '把目前的 slice 設為 Apical 起始', k_confirm: '確認 Apex，跳到下一個待確認的病例',
+    k_case: '上一個 / 下一個病例', k_view: '單張 / 全部 slice', k_overlay: '切換疊圖', k_help: '顯示這個說明',
   },
   en: {
-    addFiles: '＋ Files', addFolder: '＋ Folder', model: 'Model', stop: '■ Stop',
-    runAll: n => `▶ Segment pending (${n})`, runChecked: n => `▶ Segment checked (${n})`,
+    addFiles: '＋ Files / CSV', addFolder: '＋ Folder', model: 'Model', stop: '■ Stop',
+    runAll: n => `▶ Segment ${n} pending`, runChecked: n => `▶ Segment checked (${n})`, runNone: '▶ Segment',
     settings: 'Settings', pathsLabel: 'File or folder paths (one per line)',
-    include: 'Include keywords (comma separated, empty = all)', exclude: 'Exclude keywords', add: 'Add', cancel: 'Cancel',
-    saveMat: 'Write legacy .mat to the output folder', matInput: 'Also write .mat next to the input',
-    niiInput: 'Write segmentation .nii.gz next to the input', workspace: 'Workspace', openFolder: 'Open folder',
-    cases: 'Cases', colName: 'Name', colStatus: 'Status', colApex: 'Apex', colChecks: 'QC',
-    emptyCases: 'Use “＋ Files” or “＋ Folder” to add cine NIfTI images.\nNo CSV and no apex needed up front: confirm the apex on the images after segmentation.',
+    include: 'Path contains (comma separated, empty = all)', exclude: 'Skip paths containing', add: 'Add', cancel: 'Cancel', close: 'Close',
+    saveMat: 'Write legacy .mat files', matInput: 'Also write the .mat next to the input image',
+    niiInput: 'Write the segmentation .nii.gz next to the input image', workspace: 'Workspace', openFolder: 'Open',
+    cases: 'Cases', selectAll: 'Select all',
+    emptyTitle: 'Get started', step1: 'Add cine NIfTI files, a folder, or a case list (CSV) of the previous GUI',
+    step2: 'Press “▶ Segment”; models are downloaded automatically', step3: 'Confirm the first apical slice of each case; the .mat is then written',
+    emptyNote: 'Apex values filled in a CSV are taken as confirmed. “Open results” shows .mat files of the previous GUI.',
+    noMatch: 'No case matches this filter.',
+    f_all: 'All', f_review: 'To confirm', f_warn: 'Flagged', f_pending: 'Not segmented', f_done: 'Done', f_error: 'Error',
     remove: 'Remove checked', openCaseFolder: 'Open case folder',
-    viewSingle: 'Single', viewMosaic: 'All slices', zoomHeart: 'Zoom to heart', zoomFull: 'Full image',
+    viewSingle: 'Single', viewMosaic: 'All slices', zoomHeart: 'Heart', zoomFull: 'Full',
     ovSeg: 'Segmentation', ovEdge: 'Contours', ovAha: 'AHA 17', ovNone: 'No overlay',
-    opacity: 'Opacity', hintSelect: 'Select a case on the left', frame: 'Frame', slice: 'Slice',
-    apexStart: 'First apical slice', setApex: 'Use current slice as apex', confirmApex: 'Confirm suggestion',
-    sliceOrder: 'Slice order', baseFirst: 'base → apex', apexFirst: 'apex → base',
-    results: 'Segmentation check', noResults: 'Slices worth a look are listed here after segmentation.',
-    st_pending: 'Pending', st_queued: 'Queued', st_running: 'Segmenting', st_review: 'Check apex',
+    opacity: 'Opacity', hintSelect: 'Select a case on the left', hintEmpty: 'Images and segmentations appear here once cases are added', frame: 'Frame', slice: 'Slice',
+    apexStart: 'First apical slice', setApex: 'Use current slice', confirmApex: '✓ Confirm', confirmNext: '✓ Confirm, next →',
+    sliceOrder: 'Order', baseFirst: 'base → apex', apexFirst: 'apex → base',
+    details: 'Case details', noResults: 'Select a case to see its details and the slices worth a look.',
+    st_pending: 'Not segmented', st_queued: 'Queued', st_running: 'Segmenting', st_review: 'To confirm',
     st_done: 'Done', st_error: 'Error',
-    suggested: 'suggested', confirmed: 'confirmed',
+    suggested: 'suggested, please confirm', confirmed: 'confirmed',
     lv_basal: 'basal', lv_mid: 'mid', lv_apical: 'apical', lv_apex: 'apex cap',
     added: n => `Added ${n} case(s)`, queued: n => `Queued ${n} case(s)`,
     downloading: (m, p) => `Downloading model ${m} … ${p}`, runningCase: (n, p) => `Segmenting: ${n} ${p}`,
-    queueLeft: n => `, ${n} queued`, idle: 'Idle', apexSaved: k => `Apex set to slice ${k}; AHA updated`,
+    queueLeft: n => ` (${n} more queued)`, idle: 'Idle', apexSaved: k => `Apex set to slice ${k}; AHA and 6/4 sectors updated`,
+    allConfirmed: 'The apex of every case is confirmed ✓', nextCase: n => `Confirmed; next: ${n}`,
     confirmRemove: n => `Remove ${n} case(s) from the list? (files are kept)`,
-    notSegmented: 'Not segmented yet.', error: 'Error',
+    notSegmented: 'Not segmented yet. Press “▶ Segment” above.', error: 'Error',
     lblLV: 'LV blood', lblMYO: 'Myocardium', lblRV: 'RV blood', lblEndo: 'LV endocardium', lblEpi: 'LV epicardium',
     ovSectors: '6/4 sectors', ovLV: 'LV', ovRV: 'RV', overlay: 'Overlay', cmap: 'Colour map',
-    openResults: 'Open results (.mat)', genCsv: 'Generate CSV (GenCSV)', resultsPrompt: 'Folder with *pred*.mat files',
+    openResults: 'Open results (.mat)', genCsv: 'Only write a CSV', resultsPrompt: 'Folder with *pred*.mat files',
+    genCsvNote: 'Adds nothing: writes the files found to a CSV (Apex left blank) to fill in with Excel and add with “＋ Files / CSV”',
     addedFull: (a, u, m) => `Added ${a} case(s)` + (u ? `, updated ${u}` : '') + (m ? `, ${m} file(s) not found (see Log)` : ''),
-    genCsvDone: (n, p) => `GenCSV: ${n} file(s) → ${p} (fill in Apex, then add the CSV with “＋ Files”)`,
+    genCsvDone: (n, p) => `GenCSV: ${n} file(s) → ${p} (fill in Apex, then add the CSV with “＋ Files / CSV”)`,
+    addTitleFiles: 'Add files', addTitleFolder: 'Add folder',
+    addNoteBrowser: 'Paste full paths of NIfTI files, CSV case lists or folders. Folders are searched with their subfolders.',
+    addNoteFolder: 'Every .nii / .nii.gz in the folder and its subfolders is added.',
+    filterNote: 'For example, to take only cine images: contains “cine”; skip “mask, _seg” to leave out label files.',
+    secOutputs: 'Outputs', secFolders: 'Folders', secModels: 'Models',
+    csvOverride: 'In a CSV case list, the mat_in_inputdir / nii_in_inputdir columns override these two settings per row.',
     outputDir: '.mat output folder', outputDirHint: 'empty = workspace/output', csvDir: 'CSV folder',
     downloadAll: 'Download all models', downloadStarted: n => (n ? `Downloading ${n} model(s)` : 'All models are already downloaded'),
-    log: 'Log', kindMat: 'result', matNote: 'Result of the original GUI (read-only): apex taken from its 6/4 sectors; nothing is written.',
-    csvNote: 'From the CSV: ', apexFromCsv: 'apex confirmed', ownOutputs: (m, n) => `.mat next to input ${m}, .nii.gz next to input ${n}`,
+    modelsDownloaded: (a, n) => `${a} of ${n} models downloaded`,
+    log: 'Log', kindMat: 'result', matNote: 'Result of the previous GUI (read-only): apex taken from its 6/4 sectors; nothing is written.',
+    csvNote: 'From the CSV: ', ownOutputs: (m, n) => `.mat next to input ${m}, .nii.gz next to input ${n}`,
     yes: 'yes', no: 'no', sectorsLegend: (n) => `${n} sectors`,
     wall_anterior: 'Anterior', wall_anteroseptal: 'Anteroseptal', wall_inferoseptal: 'Inferoseptal', wall_inferior: 'Inferior',
     wall_inferolateral: 'Inferolateral', wall_anterolateral: 'Anterolateral', wall_septal: 'Septal', wall_lateral: 'Lateral', wall_apex: 'Apex',
     modelMissing: ' (downloaded on first use)',
-    phases: (ed, es) => `ED frame ${ed} · ES frame ${es} (largest / smallest LV blood pool)`,
-    checksTitle: 'Worth checking', show: 'Show', flagged: 'flagged',
+    dtFile: 'File', dtModel: 'Model', dtPhases: 'ED / ES', dtSize: 'Size',
+    phases: (ed, es) => `frame ${ed} / ${es}`, phasesNote: 'largest / smallest LV blood pool',
+    checksTitle: 'Worth checking', noChecks: 'No slice needs a closer look', show: 'Show', flagged: 'flagged',
     chkBigger: (z, ch, es, ed) => `slice ${z}: ${ch} larger at ES than at ED (${es} vs ${ed} mm²), the label may cover a structure outside the ventricle`,
     chkGap: (z, ph, ch, a, n) => `slice ${z}: ${ch} possibly missed at ${ph} (${a} mm², neighbouring slices ${n} mm²)`,
     chkRing: (z, p) => `slice ${z}: only ${p}% of the basal-most LV at ES is enclosed by myocardium, the LV label may include atrium`,
-    outputs: 'Output files',
+    outputs: 'Output files', openOutput: 'Open the .mat output folder',
+    shortcuts: 'Keyboard shortcuts', playKey: 'Play / pause (Space)', sliceKey: 'Previous / next slice (↑ ↓)',
+    setApexKey: 'Use the current slice as the first apical slice (A)', confirmKey: 'Confirm the apex and go to the next case to confirm (Enter)',
+    k_frame: 'Previous / next frame', k_slice: 'Previous / next slice', k_play: 'Play / pause',
+    k_apex: 'Use the current slice as the first apical slice', k_confirm: 'Confirm the apex, go to the next case to confirm',
+    k_case: 'Previous / next case', k_view: 'Single / all slices', k_overlay: 'Next overlay', k_help: 'Show this help',
   },
 };
 let lang = 'en';
@@ -123,7 +161,7 @@ const rgb = (c, a = 1) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
 // ---------------------------------------------------------------- state
 const S = {
-  state: null, selected: null, checked: new Set(),
+  state: null, selected: null, checked: new Set(), filter: 'all',
   view: 'single', zoom: 'heart', overlay: 'seg', opacity: 0.45,
   frame: 0, slice: null, playing: null,
   loadedKey: null, ahaKey: null, loading: false, message: '', error: false,
@@ -132,6 +170,9 @@ const S = {
 try { S.cmap = localStorage.getItem('tigerhx_cmap') || 'gray'; } catch (e) { /* storage blocked */ }
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const baseName = p => String(p ?? '').split(/[\\/]/).pop();
+// long file names may wrap after '_' and '.' instead of anywhere
+const wrapName = s => esc(s).replace(/([_.])/g, '$1<wbr>');
 
 async function api(path, body) {
   const opt = body === undefined ? {} : {
@@ -142,16 +183,24 @@ async function api(path, body) {
   if (!r.ok) throw new Error(data.error || r.statusText);
   return data;
 }
+let toastTimer = null;
 function say(msg, isError = false) {
   S.message = msg; S.error = isError;
   const el = $('statusMsg');
   el.textContent = msg;
+  el.title = msg;
   el.className = isError ? 'err' : '';
+  const toast = $('toast');
+  toast.textContent = msg;
+  toast.className = `toast${isError ? ' err' : ''}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.add('hidden'), isError ? 7000 : 3500);
 }
 const guard = fn => async (...a) => { try { await fn(...a); } catch (e) { say(`${t('error')}: ${e.message}`, true); } };
 
 const selectedCase = () => S.state && S.state.cases.find(c => c.id === S.selected);
 const isSegmented = c => !!(c && ['review', 'done'].includes(c.status) && c.levels);
+const isFlagged = c => isSegmented(c) && (c.checks || []).length > 0;
 
 // ---------------------------------------------------------------- polling
 async function refresh() {
@@ -185,13 +234,22 @@ async function poll() {
 function applyI18n() {
   document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
   $('btnLang').textContent = lang === 'zh' ? 'EN' : '中文';
+  $('btnSetApex').textContent = t('setApex');
+  const keys = [['← →', 'k_frame'], ['↑ ↓', 'k_slice'], ['Space', 'k_play'], ['A', 'k_apex'], ['Enter', 'k_confirm'],
+    ['N  P', 'k_case'], ['M', 'k_view'], ['O', 'k_overlay'], ['?', 'k_help']];
+  $('keysTable').innerHTML = keys.map(([k, d]) =>
+    `<tr><td>${k.split(/\s+/).map(x => `<kbd>${esc(x)}</kbd>`).join(' ')}</td><td>${esc(t(d))}</td></tr>`).join('');
 }
 
 function render() {
   const st = S.state;
   if (!st) return;
-  if (!selectedCase() && st.cases.length) S.selected = st.cases[0].id;
+  if (!selectedCase() && st.cases.length) {
+    const first = st.cases.find(c => c.status === 'review') || st.cases[0];
+    S.selected = first.id;
+  }
   renderTop(st);
   renderCases(st);
   renderStatus(st);
@@ -199,6 +257,9 @@ function render() {
   renderViewerBars(c);
   renderResults(c);
   if (c) maybeLoadCase(c);
+  else { $('canvasHint').textContent = t(st.cases.length ? 'hintSelect' : 'hintEmpty'); $('canvasHint').classList.remove('hidden'); }
+  document.querySelectorAll('.viewer-bar').forEach(el => el.classList.toggle('hidden', !c));
+  $('apexBar').classList.toggle('hidden', !isSegmented(c));
 }
 
 function renderTop(st) {
@@ -215,41 +276,88 @@ function renderTop(st) {
   if (document.activeElement !== sel) sel.value = st.settings.model;
   document.querySelectorAll('[data-setting]').forEach(el => { el.checked = !!st.settings[el.dataset.setting]; });
   $('workspace').textContent = st.workspace;
+  const sep = st.workspace.includes('\\') ? '\\' : '/';
+  $('csvDirText').textContent = `${st.workspace}${sep}csv`;
+  $('modelSummary').textContent = t('modelsDownloaded', st.models.filter(m => m.downloaded).length, st.models.length);
   if (document.activeElement !== $('outputDir')) $('outputDir').value = st.settings.output_dir || '';
   $('outputDir').placeholder = `${st.output_dir}  (${t('outputDirHint')})`;
+  $('outputDir').disabled = !st.settings.save_mat;
+  $('btnOpenOutput').disabled = !st.settings.save_mat;
 
   const checked = [...S.checked].filter(id => st.cases.some(c => c.id === id));
   const pending = st.cases.filter(c => (c.status === 'pending' || c.status === 'error') && c.kind !== 'mat').length;
   const run = $('btnRun');
-  run.textContent = checked.length ? t('runChecked', checked.length) : t('runAll', pending);
+  run.textContent = checked.length ? t('runChecked', checked.length) : pending ? t('runAll', pending) : t('runNone');
   run.disabled = checked.length ? false : pending === 0;
-  $('btnStop').disabled = !(st.running || st.queued);
+  const busy = !!(st.running || st.queued);
+  $('btnStop').classList.toggle('hidden', !busy);
+
+  // progress of the running case or model download, in the status bar
+  const ms = st.model_status;
+  const running = st.running && st.cases.find(x => x.id === st.running);
+  const frac = ms.state === 'downloading' ? ms.progress : running ? running.progress : null;
+  $('topProgress').classList.toggle('hidden', frac === null);
+  if (frac !== null) $('topProgressBar').style.width = `${(frac * 100).toFixed(1)}%`;
 }
 
-function chip(c) {
+function pill(c) {
   const pct = c.status === 'running' ? ` ${Math.round(c.progress * 100)}%` : '';
-  return `<span class="chip ${c.status}"><span class="dot"></span>${esc(t('st_' + c.status))}${pct}</span>` +
-    (c.status === 'running' ? `<div class="bar"><i style="width:${(c.progress * 100).toFixed(1)}%"></i></div>` : '');
+  return `<span class="pill ${c.status}"><span class="dot"></span>${esc(t('st_' + c.status))}${pct}</span>`;
+}
+
+const FILTERS = {
+  all: () => true,
+  review: c => c.status === 'review',
+  warn: isFlagged,
+  pending: c => ['pending', 'queued', 'running'].includes(c.status),
+  done: c => c.status === 'done',
+  error: c => c.status === 'error',
+};
+
+function renderFilters(st) {
+  const box = $('caseFilters');
+  const counts = Object.fromEntries(Object.entries(FILTERS).map(([k, f]) => [k, st.cases.filter(f).length]));
+  if (counts[S.filter] === 0 && S.filter !== 'all') S.filter = 'all';
+  // only filters that would narrow the list are shown
+  const shown = st.cases.length ? Object.keys(FILTERS).filter(k => k === 'all' || (counts[k] && counts[k] < counts.all)) : [];
+  const html = shown.length > 1 ? shown.map(k =>
+    `<button data-filter="${k}" class="${k === S.filter ? 'on' : ''}">${esc(t('f_' + k))}<b>${counts[k]}</b></button>`).join('') : '';
+  if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
+}
+
+function visibleCases(st) {
+  return st.cases.filter(FILTERS[S.filter] || FILTERS.all);
+}
+
+function caseRow(c) {
+  const name = c.name.split('/');
+  const leaf = name.pop();
+  const apex = c.apex_slice === null || c.apex_slice === undefined ? '' :
+    `<span title="${esc(t('apexStart'))}">Apex ${esc(c.apex_slice)}${c.apex_confirmed ? '' : '?'}</span>`;
+  const nWarn = (c.checks || []).length;
+  const qc = !isSegmented(c) ? '' : nWarn
+    ? `<span class="warn-mark" title="${esc(t('checksTitle'))}: ${nWarn}">⚠ ${nWarn}</span>` : '<span class="ok-mark">✓</span>';
+  const bar = c.status === 'running' ? `<span class="bar"><i style="width:${(c.progress * 100).toFixed(1)}%"></i></span>` : '';
+  const msg = c.message && c.status === 'error' ? `<div class="case-msg">${esc(c.message)}</div>` : '';
+  const folder = name.length ? `<bdi>${esc(name.join('/'))}/</bdi>` : '';
+  return `<li class="row${c.id === S.selected ? ' selected' : ''}" data-id="${c.id}" title="${esc(c.path)}">
+    <input type="checkbox" data-check="${c.id}"${S.checked.has(c.id) ? ' checked' : ''} aria-label="${esc(c.name)}">
+    <span class="case-name">${wrapName(leaf)}</span>${pill(c)}
+    <span></span><div class="case-sub"><span class="folder">${folder}</span><span class="meta">${
+      c.kind === 'mat' ? `<span class="tag mat">${esc(t('kindMat'))}</span>` : ''}${bar}${apex}${qc}</span></div>${msg}</li>`;
 }
 
 function renderCases(st) {
   const body = $('caseBody');
-  $('caseCount').textContent = st.cases.length ? `(${st.cases.length})` : '';
+  $('caseCount').textContent = st.cases.length ? `${st.cases.length}` : '';
   $('caseEmpty').classList.toggle('hidden', st.cases.length > 0);
-  $('caseEmpty').innerText = t('emptyCases');
-  const rows = st.cases.map(c => {
-    const apex = c.apex_slice === null ? '–' : (c.apex_confirmed ? `${c.apex_slice}` : `${c.apex_slice}?`);
-    const nWarn = (c.checks || []).length;
-    const qc = !isSegmented(c) ? '–' : nWarn
-      ? `<span class="warn-mark" title="${esc(t('checksTitle'))}: ${nWarn}">⚠ ${nWarn}</span>` : '<span class="ok-mark">✓</span>';
-    const msg = c.message && c.status === 'error' ? `<div class="case-msg">${esc(c.message)}</div>` : '';
-    return `<tr class="row${c.id === S.selected ? ' selected' : ''}" data-id="${c.id}" title="${esc(c.path)}">
-      <td><input type="checkbox" data-check="${c.id}"${S.checked.has(c.id) ? ' checked' : ''}></td>
-      <td class="name">${esc(c.name)}${c.kind === 'mat' ? ` <span class="tag">${esc(t('kindMat'))}</span>` : ''}${msg}</td><td>${chip(c)}</td>
-      <td class="num">${esc(apex)}</td><td class="num">${qc}</td></tr>`;
-  }).join('');
+  renderFilters(st);
+  const vis = visibleCases(st);
+  $('caseNoMatch').classList.toggle('hidden', !st.cases.length || vis.length > 0);
+  const rows = vis.map(caseRow).join('');
   if (body.dataset.html !== rows) { body.innerHTML = rows; body.dataset.html = rows; }
-  $('checkAll').checked = st.cases.length > 0 && st.cases.every(c => S.checked.has(c.id));
+  $('checkAll').checked = vis.length > 0 && vis.every(c => S.checked.has(c.id));
+  $('checkAll').disabled = !vis.length;
   $('btnRemove').disabled = S.checked.size === 0;
   $('btnOpenCase').disabled = !isSegmented(selectedCase());
 }
@@ -267,6 +375,41 @@ function renderStatus(st) {
   $('statusMain').textContent = main;
 }
 
+const apexSide = (c, k) => (c.base_first === false ? k <= c.apex_slice : k >= c.apex_slice);
+
+function renderLadder(c, seg, nz) {
+  const box = $('ladder');
+  const flags = new Set(seg ? (c.checks || []).map(k => k.slice) : []);
+  const key = JSON.stringify([c && c.id, nz, seg && c.levels, seg && c.apex_slice, seg && c.base_first,
+    seg && c.apex_confirmed, [...flags], S.slice, !!S.loadedKey, lang]);
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.classList.toggle('apex-confirmed', !!(seg && c.apex_confirmed));
+  box.classList.toggle('apex-first', !!(seg && c.base_first === false));
+  const parts = [];
+  for (let k = 0; k < nz; k++) {
+    const level = seg && c.levels ? c.levels[k] : null;
+    const cls = [level ? `l-${level === 'apex' ? 'apex' : level}` : '', k === S.slice ? 'cur' : '',
+      seg && c.apex_slice === k ? 'apex-start' : '', flags.has(k) ? 'flag' : ''].filter(Boolean).join(' ');
+    const tip = [`slice ${k}`, level ? t('lv_' + level) : '', seg && c.apex_slice === k ? t('apexStart') : '',
+      flags.has(k) ? `⚠ ${t('flagged')}` : ''].filter(Boolean).join(' · ');
+    parts.push(`<button data-slice="${k}" class="${cls}" title="${esc(tip)}"${S.loadedKey ? '' : ' disabled'}>${k}</button>`);
+  }
+  box.innerHTML = parts.join('');
+  const cur = box.querySelector('.cur');
+  if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+function nextToConfirm(c) {
+  const list = S.state.cases;
+  const i = list.findIndex(x => x.id === c.id);
+  for (let n = 1; n < list.length; n++) {
+    const x = list[(i + n) % list.length];
+    if (x.status === 'review') return x;
+  }
+  return null;
+}
+
 function renderViewerBars(c) {
   const seg = isSegmented(c);
   const nt = c && c.shape ? c.shape[3] : 1;
@@ -274,31 +417,31 @@ function renderViewerBars(c) {
   const fr = $('frame');
   fr.max = Math.max(0, nt - 1);
   if (+fr.value !== S.frame) fr.value = S.frame;
-  $('frameText').textContent = c && c.shape ? `${S.frame} / ${nt - 1}` : '–';
+  const phase = seg && nt > 1 ? (S.frame === c.ed ? ' ED' : S.frame === c.es ? ' ES' : '') : '';
+  $('frameText').textContent = c && c.shape ? `${S.frame}/${nt - 1}${phase}` : '–';
   $('btnED').disabled = !seg || nt < 2;
   $('btnES').disabled = !seg || nt < 2;
   $('btnPlay').disabled = !S.loadedKey || nt < 2;
-  $('sliceText').textContent = S.slice === null || !nz ? '–' : `${S.slice} / ${nz - 1}`;
-  $('btnSlicePrev').disabled = !S.loadedKey || S.view === 'mosaic';
-  $('btnSliceNext').disabled = !S.loadedKey || S.view === 'mosaic';
+  $('sliceText').textContent = S.slice === null || !nz ? '–' : `${S.slice}/${nz - 1}`;
+  $('btnSlicePrev').disabled = !S.loadedKey;
+  $('btnSliceNext').disabled = !S.loadedKey;
   fr.disabled = !S.loadedKey || nt < 2;
-  const level = seg && S.slice !== null && c.levels ? c.levels[S.slice] : null;
-  const notes = level ? [t('lv_' + level)] : [];
-  const flagged = seg && (c.checks || []).some(k => k.slice === S.slice && frameOf(c, k) === S.frame);
-  if (flagged) notes.push(`⚠ ${t('flagged')}`);
-  $('levelTag').classList.toggle('hidden', !notes.length);
-  $('levelTag').classList.toggle('warn', flagged);
-  $('levelTag').textContent = notes.join(' · ');
+  renderLadder(c, seg, nz);
 
   $('apexValue').textContent = seg && c.apex_slice !== null ? c.apex_slice : '–';
   const tag = $('apexTag');
-  tag.classList.toggle('hidden', !seg || c.apex_slice === null);
-  tag.textContent = seg && c.apex_confirmed ? t('confirmed') : t('suggested');
-  tag.className = 'tag' + (seg && c.apex_confirmed ? ' ok' : ' warn') + (tag.classList.contains('hidden') ? ' hidden' : '');
-  $('btnSetApex').disabled = !seg || S.slice === null;
-  $('btnConfirmApex').disabled = !seg || c.apex_confirmed || c.apex_slice === null;
+  const showTag = seg && c.apex_slice !== null && c.kind !== 'mat';
+  tag.className = `tag ${seg && c.apex_confirmed ? 'ok' : 'warn'}${showTag ? '' : ' hidden'}`;
+  tag.textContent = seg && c.apex_confirmed ? `✓ ${t('confirmed')}` : t('suggested');
+  const readOnly = !seg || c.kind === 'mat';
+  $('apexBar').classList.toggle('needs', seg && !c.apex_confirmed && c.kind !== 'mat');
+  $('btnSetApex').disabled = readOnly || S.slice === null || S.slice === c.apex_slice;
+  const confirm = $('btnConfirmApex');
+  const next = seg ? nextToConfirm(c) : null;
+  confirm.textContent = next && !c.apex_confirmed ? t('confirmNext') : t('confirmApex');
+  confirm.disabled = readOnly || c.apex_confirmed || c.apex_slice === null;
   const so = $('sliceOrder');
-  so.disabled = !seg;
+  so.disabled = readOnly;
   if (seg && document.activeElement !== so) so.value = c.base_first === false ? '0' : '1';
   document.querySelectorAll('#viewMode button').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
   document.querySelectorAll('#zoomMode button').forEach(b => {
@@ -311,7 +454,7 @@ function renderViewerBars(c) {
   if (document.activeElement !== $('cmap')) $('cmap').value = S.cmap;
 }
 
-// ---------------------------------------------------------------- results
+// ---------------------------------------------------------------- details
 const frameOf = (c, k) => (k.phase === 'ED' ? c.ed : c.es);
 
 function checkText(k) {
@@ -324,32 +467,35 @@ function checkText(k) {
 function renderResults(c) {
   const box = $('results');
   const key = c ? JSON.stringify([c.id, c.status, c.model, c.ed, c.es, c.checks, c.outputs, lang, c.message,
-    c.kind, c.mat_in_inputdir, c.nii_in_inputdir, c.apex_confirmed]) : 'none';
+    c.kind, c.mat_in_inputdir, c.nii_in_inputdir, c.apex_confirmed, c.shape, Math.round((c.progress || 0) * 100)]) : `none${lang}`;
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   if (!c) { box.innerHTML = `<div class="empty">${esc(t('noResults'))}</div>`; return; }
   const yn = v => (v === null || v === undefined ? '–' : t(v ? 'yes' : 'no'));
   const own = c.mat_in_inputdir !== null || c.nii_in_inputdir !== null;
-  const info = `<div class="info"><b>${esc(c.name)}</b><br><span class="mono">${esc(c.path)}</span></div>` +
-    (c.kind === 'mat' ? `<div class="info">${esc(t('matNote'))}</div>` : '') +
-    (own ? `<div class="info">${esc(t('csvNote') + t('ownOutputs', yn(c.mat_in_inputdir), yn(c.nii_in_inputdir)))}</div>` : '');
+  const rows = [[t('dtFile'), `<span title="${esc(c.path)}">${wrapName(baseName(c.path))}</span>`]];
+  if (c.shape) rows.push([t('dtSize'), esc(c.shape.join(' × '))]);
+  if (c.model) rows.push([t('dtModel'), esc(c.model)]);
+  if (isSegmented(c) && c.shape[3] > 1) rows.push([t('dtPhases'), `<span title="${esc(t('phasesNote'))}">${esc(t('phases', c.ed, c.es))}</span>`]);
+  const head = `<div class="case-title"><span>${wrapName(baseName(c.name))}</span> ${pill(c)}</div>
+    <dl class="meta">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>` +
+    (c.kind === 'mat' ? `<div class="note">${esc(t('matNote'))}</div>` : '') +
+    (own ? `<div class="note">${esc(t('csvNote') + t('ownOutputs', yn(c.mat_in_inputdir), yn(c.nii_in_inputdir)))}</div>` : '');
   if (!isSegmented(c)) {
     const msg = c.status === 'error' ? `<div class="case-msg">${esc(c.message)}</div>` : '';
-    box.innerHTML = `${info}<div class="empty">${esc(t('notSegmented'))}</div>${msg}`;
+    const hint = ['pending', 'error'].includes(c.status) ? `<div class="empty">${esc(t('notSegmented'))}</div>` : '';
+    box.innerHTML = `${head}${hint}${msg}`;
     return;
   }
-  const multi = c.shape[3] > 1;
-  const checks = (c.checks || []).map(k => `<li class="warn"><span class="ico">⚠</span>
+  const checks = (c.checks || []).map(k => `<li><span class="ico">⚠</span>
       <span>${esc(checkText(k))}</span>
       <button class="small" data-goto="${frameOf(c, k)},${k.slice}">${esc(t('show'))}</button></li>`).join('');
-  const outputs = Object.values(c.outputs || {}).map(p => `<li class="mono">${esc(p)}</li>`).join('');
-  box.innerHTML = `${info}
-    <div class="info">${esc(c.model)}${multi ? `<br>${esc(t('phases', c.ed, c.es))}` : ''}</div>
-    ${checks ? `<div class="card">
-      <div class="card-title">${esc(t('checksTitle'))}</div>
-      <ul class="checks">${checks}</ul>
-    </div>` : ''}
-    ${outputs ? `<div class="sub-title">${esc(t('outputs'))}</div><ul class="outputs">${outputs}</ul>` : ''}`;
+  const outputs = Object.values(c.outputs || {}).map(p => `<li title="${esc(p)}">${wrapName(baseName(p))}</li>`).join('');
+  box.innerHTML = `${head}
+    ${checks ? `<div class="card"><div class="card-title">⚠ ${esc(t('checksTitle'))}</div><ul class="checks">${checks}</ul></div>`
+    : `<div class="card ok"><div class="card-title">✓ ${esc(t('noChecks'))}</div></div>`}
+    ${outputs ? `<div class="card"><div class="card-title">${esc(t('outputs'))}</div><ul class="outputs">${outputs}</ul>
+      <div><button class="small" data-open="output">${esc(t('openOutput'))}</button></div></div>` : ''}`;
 }
 
 async function gotoFrameSlice(f, k) {
@@ -362,10 +508,9 @@ async function gotoFrameSlice(f, k) {
 const nv = new niivue.Niivue({
   backColor: [0, 0, 0, 1], show3Dcrosshair: false, isColorbar: false, isOrientCube: false,
   isOrientationTextVisible: false, dragAndDropEnabled: false, loadingText: '',
-  isRadiologicalConvention: false, crosshairWidth: 0.25, crosshairGap: 8,
+  isRadiologicalConvention: false, crosshairWidth: 0, crosshairGap: 8,
 });
 nv.attachToCanvas($('gl'));
-nv.setCrosshairColor([1, 0.85, 0.2, 0.6]);
 nv.onLocationChange = d => {
   if (!d || !d.vox) return;
   const k = Math.round(d.vox[2]);
@@ -714,7 +859,44 @@ function shapesAt(mode, k, t) {
   return out;
 }
 
+// All-slices view: each tile gets its slice number and level, the current
+// slice a frame and the first apical slice a marker.
+function drawTileLabels(c) {
+  const ctx = ovCtx;
+  const nz = nv.volumes[0].hdr.dims[3];
+  const dpr = nv.uiData.dpr || 1;
+  const seg = isSegmented(c);
+  ctx.save();
+  ctx.font = `600 ${11 * dpr}px system-ui, sans-serif`;
+  ctx.textBaseline = 'top';
+  for (const tile of nv.screenSlices) {
+    if (tile.axCorSag !== 0 || !tile.leftTopWidthHeight) continue;
+    const k = Math.round(tile.sliceFrac * nz - 0.5);
+    const [L, T, W, H] = tile.leftTopWidthHeight;
+    const level = seg && c.levels ? c.levels[k] : '';
+    const apex = seg && c.apex_slice === k;
+    const text = `${k}${level ? ` · ${t('lv_' + level)}` : ''}${apex ? ' · apex' : ''}`;
+    const pad = 4 * dpr;
+    const w = ctx.measureText(text).width + 2 * pad;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(L + 2 * dpr, T + 2 * dpr, w, 16 * dpr);
+    ctx.fillStyle = apex ? (c.apex_confirmed ? '#6ee06e' : '#ffc94d') : '#f0efec';
+    ctx.fillText(text, L + 2 * dpr + pad, T + 4 * dpr);
+    if (k === S.slice) {
+      ctx.lineWidth = 2 * dpr;
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.strokeRect(L + dpr, T + dpr, W - 2 * dpr, H - 2 * dpr);
+    }
+  }
+  ctx.restore();
+}
+
 function drawOverlay() {
+  drawShapes();
+  if (S.loadedKey && S.view === 'mosaic' && nv.volumes.length) drawTileLabels(selectedCase());
+}
+
+function drawShapes() {
   const gl = $('gl');
   if (ovCanvas.width !== gl.width || ovCanvas.height !== gl.height) {
     ovCanvas.width = gl.width; ovCanvas.height = gl.height;
@@ -812,43 +994,87 @@ nv.drawScene = (...args) => { const r = drawScene(...args); drawOverlay(); retur
 async function addPaths(paths, include = '', exclude = '', results = false) {
   const r = await api('/api/cases/add', { paths, include, exclude, results });
   say(t('addedFull', r.added, r.updated || 0, (r.missing || []).length), (r.missing || []).length > 0);
+  if (r.added && S.filter !== 'all') S.filter = 'all';
   await refresh();
 }
 // native file dialogs: the Rust app's bridge or the pywebview API
 const native = () => window.tigerhxNative || (window.pywebview && window.pywebview.api);
 
-function showAddPanel(paths = []) {
+function showAddDialog(paths = [], folder = false) {
+  $('addTitle').textContent = t(folder ? 'addTitleFolder' : 'addTitleFiles');
+  $('addNote').textContent = t(paths.length ? 'addNoteFolder' : 'addNoteBrowser');
   $('addPaths').value = paths.join('\n');
-  $('addPanel').classList.remove('hidden');
-  $('addPaths').focus();
+  $('addDialog').showModal();
+  (paths.length ? $('btnAddConfirm') : $('addPaths')).focus();
+}
+const dialogPaths = () => $('addPaths').value.split('\n').map(s => s.trim()).filter(Boolean);
+
+function selectCase(id) {
+  if (!id || id === S.selected) return;
+  S.selected = id;
+  $('caseBody').dataset.html = '';
+  render();
+  const row = document.querySelector(`#caseBody li[data-id="${id}"]`);
+  if (row) row.scrollIntoView({ block: 'nearest' });
+}
+function stepCase(d) {
+  const list = visibleCases(S.state);
+  if (!list.length) return;
+  const i = list.findIndex(c => c.id === S.selected);
+  selectCase(list[Math.max(0, Math.min(list.length - 1, (i < 0 ? 0 : i + d)))].id);
+}
+
+const postApex = async (apex, baseFirst) => {
+  const c = selectedCase();
+  await api(`/api/cases/${c.id}/apex`, { apex_slice: apex, base_first: baseFirst });
+  say(t('apexSaved', apex));
+  await refresh();
+};
+const setApexHere = guard(async () => {
+  const c = selectedCase();
+  if (!isSegmented(c) || c.kind === 'mat' || S.slice === null) return;
+  await postApex(S.slice, null);
+});
+const confirmApex = guard(async () => {
+  const c = selectedCase();
+  if (!isSegmented(c) || c.kind === 'mat' || c.apex_confirmed || c.apex_slice === null) return;
+  await api(`/api/cases/${c.id}/apex`, { apex_slice: c.apex_slice, base_first: null });
+  await refresh();
+  const next = nextToConfirm(selectedCase());
+  if (next) { say(t('nextCase', next.name)); selectCase(next.id); } else say(t('allConfirmed'));
+});
+const OVERLAYS = ['seg', 'edge', 'aha', 'sectors', 'lv', 'rv', 'none'];
+function setOverlay(mode) {
+  S.overlay = mode;
+  applyOverlay();
+  renderViewerBars(selectedCase());
+}
+function setView(v) {
+  S.view = v;
+  applyView();
+  renderViewerBars(selectedCase());
+  drawOverlay();
+}
+
+function toggleLog(open = !S.logOpen) {
+  S.logOpen = open;
+  $('logPanel').classList.toggle('hidden', !S.logOpen);
+  $('btnLog').classList.remove('alert');
+  if (S.logOpen) $('logBody').scrollTop = $('logBody').scrollHeight;
 }
 
 function bind() {
-  $('btnAddFiles').onclick = guard(async () => {
-    if (!native()) return showAddPanel();
+  const addFiles = guard(async () => {
+    if (!native()) return showAddDialog();
     const files = await native().pick_files();
     if (files && files.length) await addPaths(files);
   });
-  $('btnAddFolder').onclick = guard(async () => {
-    if (!native()) return showAddPanel();
+  const addFolder = guard(async () => {
+    if (!native()) return showAddDialog([], true);
     const dirs = await native().pick_folder();
-    if (dirs && dirs.length) showAddPanel(dirs);
+    if (dirs && dirs.length) showAddDialog(dirs, true);
   });
-  $('btnAddConfirm').onclick = guard(async () => {
-    const paths = $('addPaths').value.split('\n').map(s => s.trim()).filter(Boolean);
-    if (!paths.length) return;
-    await addPaths(paths, $('addInclude').value, $('addExclude').value);
-    $('addPanel').classList.add('hidden');
-  });
-  $('btnAddCancel').onclick = () => $('addPanel').classList.add('hidden');
-  $('btnGenCsv').onclick = guard(async () => {
-    const paths = $('addPaths').value.split('\n').map(s => s.trim()).filter(Boolean);
-    if (!paths.length) return;
-    const r = await api('/api/gencsv', { paths, include: $('addInclude').value, exclude: $('addExclude').value });
-    say(t('genCsvDone', r.count, r.path));
-    $('addPanel').classList.add('hidden');
-  });
-  $('btnOpenResults').onclick = guard(async () => {
+  const openResults = guard(async () => {
     let dirs = null;
     if (native()) dirs = await native().pick_folder();
     else {
@@ -857,27 +1083,46 @@ function bind() {
     }
     if (dirs && dirs.length) await addPaths(dirs, '', '', true);
   });
+  $('btnAddFiles').onclick = addFiles;
+  $('btnEmptyFiles').onclick = addFiles;
+  $('btnAddFolder').onclick = addFolder;
+  $('btnEmptyFolder').onclick = addFolder;
+  $('btnOpenResults').onclick = openResults;
+  $('btnEmptyResults').onclick = openResults;
+  $('btnAddConfirm').onclick = guard(async () => {
+    const paths = dialogPaths();
+    if (!paths.length) return $('addPaths').focus();
+    await addPaths(paths, $('addInclude').value, $('addExclude').value);
+    $('addDialog').close();
+  });
+  $('btnAddCancel').onclick = () => $('addDialog').close();
+  $('btnGenCsv').onclick = guard(async () => {
+    const paths = dialogPaths();
+    if (!paths.length) return $('addPaths').focus();
+    const r = await api('/api/gencsv', { paths, include: $('addInclude').value, exclude: $('addExclude').value });
+    say(t('genCsvDone', r.count, r.path));
+    $('addDialog').close();
+  });
+
+  $('btnSettings').onclick = () => $('settingsDialog').showModal();
+  $('btnHelp').onclick = () => $('helpDialog').showModal();
   $('outputDir').onchange = guard(async () => {
     await api('/api/settings', { output_dir: $('outputDir').value });
     await refresh();
   });
   $('btnOpenOutput').onclick = guard(() => api('/api/open', { folder: 'output' }));
   $('btnOpenCsv').onclick = guard(() => api('/api/open', { folder: 'csv' }));
+  $('btnOpenWs').onclick = guard(() => api('/api/open', {}));
   $('btnDownloadAll').onclick = guard(async () => {
     const r = await api('/api/models/download', {});
     say(t('downloadStarted', r.downloading));
     await refresh();
   });
-  $('btnLog').onclick = () => {
-    S.logOpen = !S.logOpen;
-    $('logPanel').classList.toggle('hidden', !S.logOpen);
-    $('btnLog').classList.remove('alert');
-    if (S.logOpen) $('logBody').scrollTop = $('logBody').scrollHeight;
-  };
-  $('btnSettings').onclick = () => $('settingsPanel').classList.toggle('hidden');
   document.querySelectorAll('[data-setting]').forEach(el => {
     el.onchange = guard(async () => { await api('/api/settings', { [el.dataset.setting]: el.checked }); await refresh(); });
   });
+  $('btnLog').onclick = () => toggleLog();
+  $('btnLogClose').onclick = () => toggleLog(false);
   $('model').onchange = guard(async () => { await api('/api/settings', { model: $('model').value }); await refresh(); });
   $('btnRun').onclick = guard(async () => {
     const ids = [...S.checked].filter(id => S.state.cases.some(c => c.id === id));
@@ -887,7 +1132,6 @@ function bind() {
     await refresh();
   });
   $('btnStop').onclick = guard(async () => { await api('/api/stop', {}); await refresh(); });
-  $('btnOpenWs').onclick = guard(() => api('/api/open', {}));
   $('btnOpenCase').onclick = guard(() => api('/api/open', { id: S.selected }));
   $('btnRemove').onclick = guard(async () => {
     const ids = [...S.checked];
@@ -901,11 +1145,18 @@ function bind() {
     lang = lang === 'zh' ? 'en' : 'zh';
     try { localStorage.setItem('tigerhx_lang', lang); } catch (e) { /* ignore */ }
     applyI18n();
-    $('caseBody').dataset.html = '';
+    ['caseBody', 'caseFilters'].forEach(id => { $(id).dataset.html = ''; });
     render();
     drawOverlay();
   };
 
+  $('caseFilters').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-filter]');
+    if (!b) return;
+    S.filter = b.dataset.filter;
+    $('caseFilters').dataset.html = '';
+    render();
+  });
   $('caseBody').addEventListener('click', ev => {
     const cb = ev.target.closest('[data-check]');
     if (cb) {
@@ -913,26 +1164,21 @@ function bind() {
       $('caseBody').dataset.html = '';
       return render();
     }
-    const row = ev.target.closest('tr.row');
-    if (row && row.dataset.id !== S.selected) {
-      S.selected = row.dataset.id;
-      $('caseBody').dataset.html = '';
-      render();
-    }
+    const row = ev.target.closest('li.row');
+    if (row) selectCase(row.dataset.id);
   });
   $('checkAll').onchange = () => {
-    S.checked = $('checkAll').checked ? new Set(S.state.cases.map(c => c.id)) : new Set();
+    const vis = visibleCases(S.state).map(c => c.id);
+    if ($('checkAll').checked) vis.forEach(id => S.checked.add(id)); else vis.forEach(id => S.checked.delete(id));
     $('caseBody').dataset.html = '';
     render();
   };
 
-  document.querySelectorAll('#viewMode button').forEach(b => {
-    b.onclick = () => { S.view = b.dataset.v; applyView(); renderViewerBars(selectedCase()); };
-  });
+  document.querySelectorAll('#viewMode button').forEach(b => { b.onclick = () => setView(b.dataset.v); });
   document.querySelectorAll('#zoomMode button').forEach(b => {
     b.onclick = () => { S.zoom = b.dataset.v; renderViewerBars(selectedCase()); render(); };
   });
-  $('overlayMode').onchange = () => { S.overlay = $('overlayMode').value; applyOverlay(); renderViewerBars(selectedCase()); };
+  $('overlayMode').onchange = () => setOverlay($('overlayMode').value);
   $('cmap').onchange = () => {
     S.cmap = $('cmap').value;
     try { localStorage.setItem('tigerhx_cmap', S.cmap); } catch (e) { /* ignore */ }
@@ -945,30 +1191,43 @@ function bind() {
   $('btnES').onclick = () => { const c = selectedCase(); if (c) setFrame(c.es); };
   $('btnSlicePrev').onclick = () => goToSlice((S.slice ?? 0) - 1);
   $('btnSliceNext').onclick = () => goToSlice((S.slice ?? 0) + 1);
-
-  const postApex = async (apex, baseFirst) => {
-    const c = selectedCase();
-    await api(`/api/cases/${c.id}/apex`, { apex_slice: apex, base_first: baseFirst });
-    say(t('apexSaved', apex));
-    await refresh();
-  };
-  $('btnSetApex').onclick = guard(() => postApex(S.slice, null));
-  $('btnConfirmApex').onclick = guard(() => postApex(selectedCase().apex_slice, null));
+  $('ladder').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-slice]');
+    if (b) goToSlice(+b.dataset.slice);
+  });
+  $('btnSetApex').onclick = setApexHere;
+  $('btnConfirmApex').onclick = confirmApex;
+  $('sliceOrder').onchange = guard(() => postApex(selectedCase().apex_slice, $('sliceOrder').value === '1'));
   $('results').addEventListener('click', ev => {
+    const o = ev.target.closest('button[data-open]');
+    if (o) return guard(() => api('/api/open', { folder: o.dataset.open }))();
     const b = ev.target.closest('button[data-goto]');
     if (!b || !selectedCase()) return;
     const [f, k] = b.dataset.goto.split(',');
     gotoFrameSlice(+f, k);
   });
-  $('sliceOrder').onchange = guard(() => postApex(selectedCase().apex_slice, $('sliceOrder').value === '1'));
 
   document.addEventListener('keydown', ev => {
-    if (ev.target.closest('input, textarea, select') || !S.loadedKey) return;
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    if (ev.target.closest('input, textarea, select, dialog')) return;
+    if (ev.key === 'Escape' && S.logOpen) return toggleLog(false);
+    if (ev.key === '?') { ev.preventDefault(); return $('helpDialog').showModal(); }
+    const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
     const keys = {
-      ArrowLeft: () => setFrame(S.frame - 1), ArrowRight: () => setFrame(S.frame + 1),
-      ArrowUp: () => goToSlice(S.slice - 1), ArrowDown: () => goToSlice(S.slice + 1), ' ': togglePlay,
+      n: () => stepCase(1), p: () => stepCase(-1),
     };
-    if (keys[ev.key]) { ev.preventDefault(); keys[ev.key](); }
+    if (S.loadedKey) {
+      Object.assign(keys, {
+        ArrowLeft: () => setFrame(S.frame - 1), ArrowRight: () => setFrame(S.frame + 1),
+        ArrowUp: () => goToSlice(S.slice - 1), ArrowDown: () => goToSlice(S.slice + 1), ' ': togglePlay,
+        a: setApexHere, Enter: confirmApex,
+        m: () => setView(S.view === 'mosaic' ? 'single' : 'mosaic'),
+        o: () => { if (isSegmented(selectedCase())) setOverlay(OVERLAYS[(OVERLAYS.indexOf(S.overlay) + 1) % OVERLAYS.length]); },
+      });
+    }
+    // a focused button keeps Enter and Space
+    if ((k === 'Enter' || k === ' ') && ev.target.closest('button')) return;
+    if (keys[k]) { ev.preventDefault(); keys[k](); }
   });
   window.addEventListener('resize', () => { if (S.view === 'mosaic') applyView(); });
 }
