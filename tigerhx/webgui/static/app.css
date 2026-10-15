@@ -393,8 +393,19 @@ kbd {
 @media (max-width: 1400px) {
   .tool-label { display: none; }
 }
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
+  .model-pick > span, .ladder-legend { display: none; }
+  #model { max-width: 190px; }
+  .topbar { gap: 8px; flex-wrap: nowrap; }
+  .topbar button { padding-left: 9px; padding-right: 9px; }
+  .divider { display: none; }
+  .ladder button { flex-basis: 22px; }
+}
+/* narrower than the native window allows (1000 px): stacked, the page scrolls */
+@media (max-width: 960px) {
   body { overflow: auto; }
-  main { grid-template-columns: 1fr; }
-  .canvas-wrap { min-height: 420px; }
+  main { flex: none; grid-template-columns: 1fr; }
+  .case-list { max-height: 40vh; }
+  .canvas-wrap { flex: none; height: 420px; }
+  .statusbar { position: sticky; bottom: 0; }
 }
