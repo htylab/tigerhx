@@ -311,8 +311,13 @@ async def scenarios(gui, page, d, shots):
     log('-- confirm with Enter')
     review = [c for c in gui.cases() if c['status'] == 'review']
     assert review, 'nothing to confirm'
-    await page.evaluate(f"selectCase('{review[0]['id']}')")
-    await page.wait_for_function("document.getElementById('canvasHint').classList.contains('hidden')", timeout=30000)
+    cid = review[0]['id']
+    # the page polls the server: wait until it shows the case segmented and
+    # has loaded it, as a user would before pressing Enter
+    await page.wait_for_function(f"S.state.cases.some(c => c.id === '{cid}' && c.status === 'review')", timeout=30000)
+    await page.evaluate(f"selectCase('{cid}')")
+    await page.wait_for_function(f"!S.loading && (S.loadedKey || '').startsWith('{cid}|') && "
+                                 "document.getElementById('canvasHint').classList.contains('hidden')", timeout=30000)
     await page.locator('body').press('Enter')
     await wait_for(lambda: next(c for c in gui.cases() if c['id'] == review[0]['id'])['status'] == 'done', 'confirm')
     await page.click('#ladder button[data-slice="2"]')
