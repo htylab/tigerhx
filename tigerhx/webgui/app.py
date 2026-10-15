@@ -65,6 +65,9 @@ def main(argv=None):
         except ImportError:
             webview = None
         if webview is not None:
+            port = os.environ.get('TIGERHX_WEBVIEW_DEBUG_PORT')  # for tools/ui_test_exe.py
+            if port and hasattr(webview, 'settings'):
+                webview.settings['REMOTE_DEBUGGING_PORT'] = int(port)
             api = NativeDialogs()
             api._window = webview.create_window('TigerHx', url, js_api=api,
                                                 width=1440, height=900, min_size=(1000, 640))

@@ -64,8 +64,7 @@ def make_data(root):
 # ---------------------------------------------------------------- the app
 class Gui:
     def __init__(self, exe, root, models):
-        env = dict(os.environ, TIGERHX_MODEL_DIR=models,
-                   WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=f'--remote-debugging-port={PORT}')
+        env = dict(os.environ, TIGERHX_MODEL_DIR=models, TIGERHX_WEBVIEW_DEBUG_PORT=str(PORT))
         self.ws = os.path.join(root, 'ws')
         self.proc = subprocess.Popen([exe, '-w', self.ws], env=env, stdout=subprocess.PIPE,
                                      stderr=subprocess.STDOUT, text=True, errors='replace')

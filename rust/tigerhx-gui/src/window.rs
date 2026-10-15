@@ -103,6 +103,17 @@ pub fn run(ctx: Arc<Ctx>, url: String, on_close: impl FnOnce() + 'static) -> ! {
         // stay on the local page; nothing opens new windows
         .with_navigation_handler(move |to| to.starts_with(&format!("{origin}/")) || to == origin)
         .with_new_window_req_handler(|_, _| NewWindowResponse::Deny);
+    // a debugging port for tools/ui_test_exe.py (wry's default arguments kept)
+    #[cfg(windows)]
+    let builder = match std::env::var("TIGERHX_WEBVIEW_DEBUG_PORT") {
+        Ok(port) if !port.is_empty() => {
+            use wry::WebViewBuilderExtWindows;
+            builder.with_additional_browser_args(format!(
+                "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={port}"
+            ))
+        }
+        _ => builder,
+    };
     #[cfg(not(target_os = "linux"))]
     let webview = builder.build(&window);
     #[cfg(target_os = "linux")]
