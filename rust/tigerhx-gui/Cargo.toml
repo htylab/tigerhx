@@ -21,6 +21,7 @@ tiny_http = "0.12"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 getrandom = "0.3"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 wry = { version = "0.57", optional = true }
 tao = { version = "0.37", optional = true }
 # GTK dialogs on Linux (GTK is already needed by the window); no portal required

@@ -37,7 +37,10 @@ fn pick(dialog: rfd::FileDialog, kind: &str) -> Vec<String> {
         dialog.pick_folder().map(|p| vec![p])
     } else {
         dialog
+            .add_filter("NIfTI, case list or result", &["nii", "gz", "csv", "mat"])
             .add_filter("NIfTI (*.nii, *.nii.gz)", &["nii", "gz"])
+            .add_filter("Case list (*.csv)", &["csv"])
+            .add_filter("TigerHx result (*.mat)", &["mat"])
             .add_filter("All files", &["*"])
             .pick_files()
     };

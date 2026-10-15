@@ -1,16 +1,31 @@
 //! Drives the pipeline from the command line, for the comparison with the
 //! Python core in tests/test_rust_parity.py.
 //!
-//!   parity run <workspace> <model> <nifti>...   add, segment, print project.json
+//!   parity run <workspace> <model> <nifti|csv|mat>...   add; segment NIfTI, open .mat
+//!   parity results <workspace> <folder>          open the folder's *pred*.mat
 //!   parity apex <workspace> <id> <apex> <base_first: 1|0|none>
-//!   parity display <workspace> <id> <image|seg|aha> <crop: 0|1> <out.nii>
+//!   parity display <workspace> <id> <image|seg|aha|sectors> <crop: 0|1> <out.nii>
 //!   parity settings <workspace> <save_mat> <mat_in_inputdir> <nii_in_inputdir>
 
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
 
 use tigerhx_core::pipeline::{self, VolumeKind};
-use tigerhx_core::project::{Project, Status};
+use tigerhx_core::project::{Case, Kind, Project, Status};
+
+fn process(project: &Project, model: Option<&Path>, cases: Vec<Case>) -> Result<(), Box<dyn std::error::Error>> {
+    let cancel = AtomicBool::new(false);
+    for c in cases {
+        if c.kind == Kind::Mat {
+            pipeline::import_mat_case(project, &c.id)?;
+        } else if let Some(model) = model {
+            pipeline::segment_case(project, &c.id, model, &|_, _| {}, &cancel)?;
+        }
+        project.update(&c.id, |c| c.status = if c.apex_confirmed { Status::Done } else { Status::Review });
+    }
+    project.save()?;
+    Ok(())
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -26,14 +41,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             project.save()?;
         }
         "run" => {
-            let model = Path::new(&args[2]);
-            let added = project.add_paths(&args[3..], "", "")?;
-            let cancel = AtomicBool::new(false);
-            for c in added {
-                pipeline::segment_case(&project, &c.id, model, &|_, _| {}, &cancel)?;
-                project.update(&c.id, |c| c.status = Status::Review);
-            }
-            project.save()?;
+            let added = project.add_paths(&args[3..], "", "", false)?;
+            process(&project, Some(Path::new(&args[2])), added.added)?;
+        }
+        "results" => {
+            let added = project.add_paths(&args[2..], "", "", true)?;
+            process(&project, None, added.added)?;
         }
         "apex" => {
             let base_first = match args[4].as_str() {

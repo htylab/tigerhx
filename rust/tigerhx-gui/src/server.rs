@@ -166,6 +166,10 @@ impl Ctx {
         if parts == ["api", "state"] {
             return Reply::json(200, self.app.state());
         }
+        if parts == ["api", "log"] {
+            let after = query_param(query, "after").and_then(|v| v.parse().ok()).unwrap_or(0);
+            return Reply::json(200, json!({"entries": self.app.log_since(after)}));
+        }
         if parts.len() == 5 && parts[..2] == ["api", "cases"] && parts[3] == "volume" {
             let kind = VolumeKind::parse(parts[4].split('.').next().unwrap_or(""));
             let (Some(kind), true) = (kind, self.app.project.case(parts[2]).is_some()) else {
@@ -224,9 +228,13 @@ impl Ctx {
         let app = &self.app;
         Ok(match parts {
             ["api", "cases", "add"] => {
-                let added = app.project.add_paths(&strings(body.get("paths"))?, str_of(body, "include"), str_of(body, "exclude"))?;
-                Reply::json(200, json!({"added": added.len()}))
+                let results = body.get("results").is_some_and(truthy);
+                Reply::json(200, app.add(&strings(body.get("paths"))?, str_of(body, "include"), str_of(body, "exclude"), results)?)
             }
+            ["api", "gencsv"] => {
+                Reply::json(200, app.gen_csv(&strings(body.get("paths"))?, str_of(body, "include"), str_of(body, "exclude"))?)
+            }
+            ["api", "models", "download"] => Reply::json(200, json!({"downloading": app.download_all()})),
             ["api", "cases", "remove"] => {
                 app.project.remove(&strings(body.get("ids"))?)?;
                 Reply::json(200, json!({"ok": true}))
@@ -241,7 +249,7 @@ impl Ctx {
                 Reply::json(200, json!({"ok": true}))
             }
             ["api", "open"] => {
-                let path = app.folder(body.get("id").and_then(Value::as_str));
+                let path = app.folder(body.get("id").and_then(Value::as_str), body.get("folder").and_then(Value::as_str));
                 if path.is_dir() {
                     open_in_file_manager(&path);
                 }

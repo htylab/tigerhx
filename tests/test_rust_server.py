@@ -21,6 +21,7 @@ import pytest
 
 sys.path.insert(0, dirname(__file__))
 from phantom import phantom, phantom_image, tiny_model  # noqa: E402
+from test_server import legacy_flow  # noqa: E402
 
 pytest.importorskip('onnx')
 
@@ -222,3 +223,9 @@ def test_stop_requeues(server, tmp_path):
     statuses = sorted(c['status'] for c in st['cases'])
     assert set(statuses) <= {'pending', 'review'} and 'pending' in statuses
     assert st['queued'] == 0
+
+
+def test_legacy_flow(server, tmp_path):
+    _, url, _ = server
+    _, call, _ = client(url)
+    legacy_flow(call, tmp_path)

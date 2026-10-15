@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 
 use crate::aha::Level;
+use crate::caselist::{self, CASE_COLUMNS};
 use crate::error::Result;
 use crate::fsutil::{abspath, path_str, relpath, write_atomic};
 use crate::legacy::{safe_name, strip_nii_ext};
@@ -36,6 +37,15 @@ impl Status {
     pub fn segmented(self) -> bool {
         matches!(self, Status::Review | Status::Done)
     }
+}
+
+/// A case to segment, or a result of the original GUI opened for viewing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Kind {
+    #[default]
+    Nifti,
+    Mat,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -75,6 +85,13 @@ pub struct Case {
     pub crop: Option<[usize; 4]>,
     #[serde(default)]
     pub outputs: serde_json::Map<String, serde_json::Value>,
+    #[serde(default)]
+    pub kind: Kind,
+    /// per-case output choices from a CSV (None = the setting)
+    #[serde(default)]
+    pub mat_in_inputdir: Option<bool>,
+    #[serde(default)]
+    pub nii_in_inputdir: Option<bool>,
 }
 
 impl Case {
@@ -99,11 +116,19 @@ pub struct Settings {
     pub mat_in_inputdir: bool,
     /// label NIfTI next to the input file
     pub nii_in_inputdir: bool,
+    /// one folder for every .mat ('' = <workspace>/output)
+    pub output_dir: String,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { model: String::new(), save_mat: true, mat_in_inputdir: false, nii_in_inputdir: false }
+        Settings {
+            model: String::new(),
+            save_mat: true,
+            mat_in_inputdir: false,
+            nii_in_inputdir: false,
+            output_dir: String::new(),
+        }
     }
 }
 
@@ -155,6 +180,53 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
             out.push(path);
         }
     }
+}
+
+fn is_ext(path: &Path, ext: &str) -> bool {
+    path.to_string_lossy().to_lowercase().ends_with(ext)
+}
+
+/// Original-GUI results in a folder (not its subfolders): *pred*.mat.
+pub fn scan_results(folder: &Path) -> Vec<PathBuf> {
+    let Ok(rd) = fs::read_dir(folder) else { return Vec::new() };
+    let mut found: Vec<PathBuf> = rd
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            let n = p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+            n.ends_with(".mat") && n.contains("pred") && p.is_file()
+        })
+        .collect();
+    found.sort_by_key(|p| path_str(p));
+    found
+}
+
+/// os.path.commonpath of absolute paths.
+fn common_path(paths: &[PathBuf]) -> PathBuf {
+    let mut it = paths.iter();
+    let Some(first) = it.next() else { return PathBuf::new() };
+    let mut common: Vec<_> = first.components().collect();
+    for p in it {
+        let n = common.iter().zip(p.components()).take_while(|(a, b)| *a == b).count();
+        common.truncate(n);
+    }
+    common.iter().collect()
+}
+
+/// "folder/sub/stem" from a path relative to the folder it was added from.
+fn case_name(rel: &Path) -> String {
+    let head = rel.parent().map(path_str).unwrap_or_default().replace(std::path::MAIN_SEPARATOR, "/");
+    let tail = strip_nii_ext(&path_str(rel));
+    [head, tail].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("/")
+}
+
+/// What adding paths did.
+#[derive(Debug, Default)]
+pub struct Added {
+    pub added: Vec<Case>,
+    pub updated: Vec<Case>,
+    /// files named in a CSV that do not exist
+    pub missing: Vec<String>,
 }
 
 /// NIfTI files below folder whose path relative to folder contains any
@@ -243,17 +315,52 @@ impl Project {
         self.workspace.join("cases").join(case.folder())
     }
 
-    /// Add files and (recursively) folders; returns the new cases.
-    pub fn add_paths(&self, paths: &[String], include: &str, exclude: &str) -> Result<Vec<Case>> {
-        let mut added = Vec::new();
+    /// The one folder that receives every .mat, as in the original GUI.
+    pub fn output_dir(&self) -> PathBuf {
+        let s = self.lock().settings.output_dir.trim().to_string();
+        if s.is_empty() { self.workspace.join("output") } else { abspath(Path::new(&s)) }
+    }
+
+    pub fn csv_dir(&self) -> PathBuf {
+        self.workspace.join("csv")
+    }
+
+    /// Add NIfTI files and (recursively) folders, case-list CSVs and
+    /// original-GUI results (.mat; with `results` a folder adds its
+    /// *pred*.mat).
+    pub fn add_paths(&self, paths: &[String], include: &str, exclude: &str, results: bool) -> Result<Added> {
+        let mut out = Added::default();
         {
             let mut state = self.lock();
+            let push = |state: &mut State, path: &Path, name: String, kind: Kind| -> Option<Case> {
+                let id = case_id(path);
+                if state.case(&id).is_some() {
+                    return None;
+                }
+                let mut c = Case::new(path, name);
+                c.kind = kind;
+                state.cases.push(c.clone());
+                Some(c)
+            };
             for p in paths {
                 let p = p.trim().trim_matches('"');
                 if p.is_empty() {
                     continue;
                 }
                 let p = Path::new(p);
+                if p.is_file() && is_ext(p, ".csv") {
+                    self.import_csv(&mut state, p, &mut out)?;
+                    continue;
+                }
+                if (p.is_file() && is_ext(p, ".mat")) || (results && p.is_dir()) {
+                    let files = if p.is_file() { vec![p.to_path_buf()] } else { scan_results(p) };
+                    for f in files {
+                        let name = path_str(Path::new(f.file_name().unwrap_or_default()));
+                        let name = name[..name.len() - 4].to_string();
+                        out.added.extend(push(&mut state, &f, name, Kind::Mat));
+                    }
+                    continue;
+                }
                 let items: Vec<(PathBuf, PathBuf)> = if p.is_dir() {
                     scan_folder(p, include, exclude).into_iter().map(|f| (f.clone(), relpath(&f, p))).collect()
                 } else if p.is_file() && is_nifti(p) {
@@ -262,21 +369,63 @@ impl Project {
                     continue;
                 };
                 for (path, rel) in items {
-                    let id = case_id(&path);
-                    if state.case(&id).is_some() {
-                        continue;
-                    }
-                    let head = rel.parent().map(path_str).unwrap_or_default().replace(std::path::MAIN_SEPARATOR, "/");
-                    let tail = strip_nii_ext(&path_str(&rel));
-                    let name = [head, tail].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("/");
-                    let c = Case::new(&path, name);
-                    state.cases.push(c.clone());
-                    added.push(c);
+                    out.added.extend(push(&mut state, &path, case_name(&rel), Kind::Nifti));
                 }
             }
         }
         self.save()?;
-        Ok(added)
+        Ok(out)
+    }
+
+    /// An original-GUI case list: a filled-in Apex counts as confirmed; the
+    /// two output columns override the settings for that case.  Names are
+    /// relative to the folder the files have in common.
+    fn import_csv(&self, state: &mut State, csv: &Path, out: &mut Added) -> Result<()> {
+        let rows = caselist::read_case_csv(csv)?;
+        out.missing.extend(rows.iter().filter(|r| !r.path.is_file()).map(|r| path_str(&r.path)));
+        let rows: Vec<_> = rows.into_iter().filter(|r| r.path.is_file()).collect();
+        let dirs: Vec<PathBuf> = rows.iter().map(|r| r.path.parent().map(Path::to_path_buf).unwrap_or_default()).collect();
+        let common = common_path(&dirs);
+        for r in rows {
+            let id = case_id(&r.path);
+            let new = state.case(&id).is_none();
+            if new {
+                state.cases.push(Case::new(&r.path, case_name(&relpath(&r.path, &common))));
+            }
+            let c = state.case_mut(&id).unwrap();
+            if !new && c.status.busy() {
+                continue;
+            }
+            c.mat_in_inputdir = r.mat_in_inputdir;
+            c.nii_in_inputdir = r.nii_in_inputdir;
+            if let Some(a) = r.apex {
+                c.apex_slice = Some(a);
+                c.apex_confirmed = true;
+            }
+            if new { out.added.push(c.clone()) } else { out.updated.push(c.clone()) }
+        }
+        Ok(())
+    }
+
+    /// The original GUI's GenCSV: one row per NIfTI found, written to
+    /// <workspace>/csv/files_<time>.csv for filling in the Apex column.
+    /// Returns the file and the number of rows.
+    pub fn gen_csv(&self, folders: &[String], include: &str, exclude: &str) -> Result<(PathBuf, usize)> {
+        let mut files = Vec::new();
+        for f in folders {
+            let f = Path::new(f.trim().trim_matches('"'));
+            if f.is_dir() {
+                files.extend(scan_folder(f, include, exclude));
+            }
+        }
+        let s = self.settings();
+        fs::create_dir_all(self.csv_dir())?;
+        let stamp = chrono::Local::now().format("%y%m%d_%H%M%S");
+        let path = self.csv_dir().join(format!("files_{stamp}.csv"));
+        let rows: Vec<Vec<String>> =
+            files.iter().map(|f| caselist::gen_row(f, s.mat_in_inputdir, s.nii_in_inputdir)).collect();
+        caselist::write_csv(&path, &CASE_COLUMNS, &rows)?;
+        Ok((path, files.len()))
     }
 
     /// Remove cases from the list (not queued or running ones); files are kept.
@@ -295,7 +444,7 @@ mod tests {
         let c = Case { id: "abc123def456".into(), path: "/x/a.nii".into(), name: "a".into(), ..Default::default() };
         let s = serde_json::to_string(&c).unwrap();
         assert!(s.starts_with(r#"{"id":"abc123def456","path":"/x/a.nii","name":"a","status":"pending","progress":0.0,"message":"","model":"","shape":null"#));
-        assert!(s.ends_with(r#""levels":null,"crop":null,"outputs":{}}"#));
+        assert!(s.ends_with(r#""levels":null,"crop":null,"outputs":{},"kind":"nifti","mat_in_inputdir":null,"nii_in_inputdir":null}"#));
         let back: Case = serde_json::from_str(r#"{"id":"x","path":"p","name":"n","status":"review","unknown":1}"#).unwrap();
         assert_eq!(back.status, Status::Review);
         assert_eq!(c.folder(), "a_abc123");

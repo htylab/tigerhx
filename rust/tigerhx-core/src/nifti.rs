@@ -314,6 +314,34 @@ pub fn load_labels(path: &Path) -> Result<Vol<u8>> {
     Ok(vol.map(|v| if v.is_finite() { (v as i64) as u8 } else { 0 }))
 }
 
+/// A NIfTI-1 header with the affine diag(zooms), for label maps of an image
+/// that has no NIfTI file (an original-GUI .mat result), as nibabel writes
+/// Nifti1Image(labels, np.diag(zooms + [1])).
+pub fn plain_header(zooms: [f64; 3]) -> Header {
+    let mut raw = vec![0u8; 348];
+    let w = Writer { big_endian: false };
+    w.i32(&mut raw, 0, 348);
+    w.i16(&mut raw, 40, 3);
+    for i in 1..=7 {
+        w.i16(&mut raw, 40 + 2 * i, 1);
+    }
+    w.i16(&mut raw, 70, DT_UINT8);
+    w.i16(&mut raw, 72, 8);
+    let pix = [1.0, zooms[0], zooms[1], zooms[2], 1.0, 1.0, 1.0, 1.0];
+    for (i, p) in pix.iter().enumerate() {
+        w.f32(&mut raw, 76 + 4 * i, *p as f32);
+    }
+    w.f32(&mut raw, 108, 352.0);
+    w.f32(&mut raw, 112, 1.0);
+    w.i16(&mut raw, 252, 2); // qform: aligned, no rotation
+    w.i16(&mut raw, 254, 2); // sform: the affine
+    for r in 0..3 {
+        w.f32(&mut raw, 280 + 16 * r + 4 * r, zooms[r] as f32);
+    }
+    raw[344..348].copy_from_slice(b"n+1\0");
+    Header::parse(&raw).expect("a valid header")
+}
+
 /// Save a uint8 label map with the header (geometry) of the source image.
 /// `ndim` is the number of dimensions to write (3 drops the frame axis,
 /// which must then be 1).

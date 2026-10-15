@@ -190,7 +190,7 @@ def compare_all(py_ws, rs_ws):
     pc, rc = compare_cases(py_ws, rs_ws)
     pd, rd = case_dir(py_ws, pc), case_dir(rs_ws, rc)
     assert os.path.basename(rd) == f"{io.safe_name(rc['name'])[:60]}_{rc['id'][:6]}"
-    for f in ('seg.nii.gz', 'aha17.nii.gz'):
+    for f in ('seg.nii.gz', 'aha17.nii.gz', 'sectors.nii.gz'):
         compare_nifti(join(pd, f), join(rd, f))
     compare_nifti(pc['outputs']['nii_inputdir'], rc['outputs']['nii_inputdir'])
     for k in ('mat', 'mat_inputdir'):
@@ -206,7 +206,7 @@ def py_display(ws, c, kind, crop):
     if kind == 'image':
         data, _, _, zooms = io.load_nifti(case.path)
     else:
-        fname = 'aha17.nii.gz' if kind == 'aha' else 'seg.nii.gz'
+        fname = {'aha': 'aha17.nii.gz', 'sectors': 'sectors.nii.gz'}.get(kind, 'seg.nii.gz')
         data = np.asarray(nib.load(join(p.case_dir(case), fname)).dataobj).astype(np.uint8)
         while data.ndim < 4:
             data = data[..., None]
@@ -223,7 +223,7 @@ def test_segmentation_and_outputs_match(runs):
     compare_all(out['py'][0], out['rs'][0])
 
 
-@pytest.mark.parametrize('kind', ['image', 'seg', 'aha'])
+@pytest.mark.parametrize('kind', ['image', 'seg', 'aha', 'sectors'])
 @pytest.mark.parametrize('crop', [False, True])
 def test_display_volumes_match(runs, tmp_path, kind, crop):
     _, out = runs
@@ -255,3 +255,91 @@ def test_apex_changes_match(runs):
         rc = only_case(rs_ws)
         rust('apex', rs_ws, rc['id'], apex, {None: 'none', True: 1, False: 0}[base_first])
         compare_all(py_ws, rs_ws)
+
+
+def by_name(ws):
+    return {c['name']: c for c in project(ws)['cases']}
+
+
+def test_case_list_and_results_match(tmp_path):
+    """The original GUI's ways in: a CSV with the apex filled in and per-row
+    output flags, then the output folder opened as results."""
+    model = tiny_model(tmp_path / 'cine4d_v9001_xy_tiny.onnx')
+    img = phantom_image(phantom())
+    out = {}
+    for impl in ('py', 'rs'):
+        d = tmp_path / impl / 'input'
+        (d / 'sub').mkdir(parents=True)
+        save_image(str(d / 'a.nii.gz'), img, (1.4, 1.4, 8.0, 1.0), np.int16)
+        save_image(str(d / 'sub' / 'b.nii.gz'), img, (1.4, 1.4, 8.0, 1.0), np.int16)
+        csv = d / 'list.csv'
+        csv.write_text('Filename,Apex,mat_in_inputdir,nii_in_inputdir\n'
+                       'a.nii.gz,4,,1\nsub/b.nii.gz,,0,\nmissing.nii.gz,3,,\n', encoding='utf-8')
+        ws, ws2 = str(tmp_path / impl / 'ws'), str(tmp_path / impl / 'ws2')
+        if impl == 'py':
+            p = Project(ws)
+            p.settings.update(save_mat=True, mat_in_inputdir=True, nii_in_inputdir=False)
+            for c in p.add_paths([str(csv)])['added']:
+                pipeline.segment_case(p, c, model)
+                c.status = 'done' if c.apex_confirmed else 'review'
+            p.save()
+            p2 = Project(ws2)
+            for c in p2.add_paths([p.output_dir()], results=True)['added']:
+                pipeline.import_mat_case(p2, c)
+                c.status = 'done' if c.apex_confirmed else 'review'
+            p2.save()
+        else:
+            rust('settings', ws, 1, 1, 0)
+            rust('run', ws, model, csv)
+            rust('results', ws2, join(ws, 'output'))
+        out[impl] = (ws, ws2, d)
+
+    (py_ws, py_ws2, py_in), (rs_ws, rs_ws2, rs_in) = out['py'], out['rs']
+    pcs, rcs = by_name(py_ws), by_name(rs_ws)
+    assert sorted(pcs) == sorted(rcs) == ['a', 'sub/b']
+    assert pcs['a']['apex_slice'] == 4 and pcs['a']['apex_confirmed']
+    for name in pcs:
+        pc, rc = pcs[name], rcs[name]
+        for k in FIELDS + ['kind', 'mat_in_inputdir', 'nii_in_inputdir']:
+            assert pc[k] == rc[k], (name, k)
+        assert sorted(pc['outputs']) == sorted(rc['outputs']), name
+        for k, path in pc['outputs'].items():
+            assert os.path.relpath(path, py_ws if k == 'mat' else py_in) == \
+                os.path.relpath(rc['outputs'][k], rs_ws if k == 'mat' else rs_in)
+            if k.startswith('mat'):
+                compare_mat(path, rc['outputs'][k])
+            else:
+                compare_nifti(path, rc['outputs'][k])
+    assert sorted(os.listdir(join(rs_ws, 'output'))) == ['a_pred_v9001.mat', 'sub_b_pred_v9001.mat']
+    assert sorted(os.listdir(rs_in)) == sorted(os.listdir(py_in))
+    assert sorted(os.listdir(rs_in / 'sub')) == sorted(os.listdir(py_in / 'sub'))
+
+    pcs, rcs = by_name(py_ws2), by_name(rs_ws2)
+    assert sorted(pcs) == sorted(rcs) == ['a_pred_v9001', 'sub_b_pred_v9001']
+    for name in pcs:
+        pc, rc = pcs[name], rcs[name]
+        for k in FIELDS + ['kind', 'outputs']:
+            assert pc[k] == rc[k], (name, k)
+        pd, rd = case_dir(py_ws2, pc), case_dir(rs_ws2, rc)
+        for f in ('seg.nii.gz', 'aha17.nii.gz', 'sectors.nii.gz'):
+            compare_nifti(join(pd, f), join(rd, f))
+        for kind in ('image', 'sectors'):
+            expected = np.asarray(nib.Nifti1Image.from_bytes(
+                pipeline_display(py_ws2, pc, kind)).dataobj)
+            path = tmp_path / f'{kind}.nii'
+            rust('display', rs_ws2, rc['id'], kind, 0, path)
+            assert_same(np.squeeze(expected), np.squeeze(np.asarray(nib.load(str(path)).dataobj)))
+    assert pcs['a_pred_v9001']['apex_slice'] == 4 and pcs['a_pred_v9001']['apex_confirmed']
+
+
+def pipeline_display(ws, c, kind):
+    p = Project(ws)
+    case = p.cases[c['id']]
+    if kind == 'image':
+        data, _, _, zooms = pipeline.load_image(case)
+    else:
+        data = np.asarray(nib.load(join(p.case_dir(case), 'sectors.nii.gz')).dataobj).astype(np.uint8)
+        zooms = case.zooms
+    while data.ndim < 4:
+        data = data[..., None]
+    return io.display_nifti_bytes(data, zooms, dtype=None if kind == 'image' else np.uint8)

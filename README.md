@@ -44,19 +44,30 @@ workspace folder, `~/TigerHx` by default (`-w <folder>` to change).
 Workflow:
 
 1. **＋ Files / ＋ Folder** – add cine NIfTI files; folders are searched
-   recursively with optional include / exclude keywords. No CSV is needed.
+   recursively with optional include / exclude keywords. A case list of the
+   previous GUI (`.csv` with `Filename, Apex, mat_in_inputdir,
+   nii_in_inputdir`) can be added too: its Apex values are taken as confirmed
+   and a row's two flags override the global settings for that case (blank =
+   setting). Files named in the CSV that do not exist are listed in the Log.
+   **Generate CSV (GenCSV)** in the same panel writes such a list for the
+   folders entered (`<workspace>/csv/files_<date>.csv`, Apex left blank) to
+   fill in with Excel and add again.
 2. **▶ Segment** – runs the selected model on all pending (or the checked)
-   cases. Models are downloaded on first use.
-3. **Review** – the viewer (NiiVue) shows the image with the segmentation,
-   its contours or the AHA 17-segment overlay, single slice or all slices,
-   zoomed to the heart (the previous GUI's `_crop` views) or the full image,
-   with a frame slider and ED/ES jump. Overlays are drawn as smooth outlines
-   rather than voxel blocks; AHA segments are numbered and coloured by wall,
-   so a wall keeps its colour at every level.
+   cases. Models are downloaded on first use; *Settings → Download all
+   models* fetches them in advance.
+3. **Review** – the viewer (NiiVue) shows the image (gray or viridis) with an
+   overlay: the segmentation, its contours, the AHA 17-segment map, the
+   previous GUI's 6/4 sectors (`LVM`: 6 sectors above the apical start, 4 from
+   it on), or the LV or RV mask alone. Single slice or all slices, zoomed to
+   the heart (the previous GUI's `_crop` views) or the full image, with a
+   frame slider and ED/ES jump. Overlays are drawn as smooth outlines rather
+   than voxel blocks; segments are numbered and coloured by wall, so a wall
+   keeps its colour at every level.
    The first apical slice and the slice order (base→apex or apex→base) are
    suggested automatically; check them on the images and use
-   *Use current slice as apex* or *Confirm suggestion*. The AHA labels are
-   recomputed instantly.
+   *Use current slice as apex* or *Confirm suggestion*. AHA 17 and the 6/4
+   sectors are recomputed instantly; both are in the `.mat`, so either can be
+   used.
 4. **Segmentation check** (right panel) – slices whose segmentation is worth
    a look: a cavity larger at ES than at ED (often a structure outside the
    ventricle), a cavity missing between two slices that have it, and a
@@ -64,10 +75,19 @@ Workflow:
    probably covers atrium). *Show* jumps to the frame and slice; the case
    list shows the number of warnings (⚠) or ✓.
 
+**Open results (.mat)** opens a folder of `*pred*.mat` files written by this
+or the previous GUI, read-only: image and labels come from the file and the
+apex from its `LVM` sectors. **Log** (status bar) shows what was segmented,
+opened or skipped, and errors.
+
 Files written per case in `<workspace>/cases/<name>/`: `seg.nii.gz`
-(labels 1–3), `aha17.nii.gz` (AHA segments 1–17 on the myocardium) and,
-unless switched off under *Settings*, the `.mat` file of the previous GUI
-(`*_pred_<version>.mat`, same fields plus `AHA17`).
+(labels 1–3), `aha17.nii.gz` (AHA segments 1–17 on the myocardium) and
+`sectors.nii.gz` (the 6/4 sectors). Unless switched off under *Settings*, the
+`.mat` file of the previous GUI (same fields plus `AHA17`) is written to one
+output folder, `<workspace>/output` or the folder set under *Settings*, named
+as before: the path relative to the added folder joined with `_`, plus
+`_pred_<version>.mat`. *Settings* can also write the `.mat` and
+`<name>_<version>_seg.nii.gz` next to the input file.
 
 Notes:
 
@@ -140,8 +160,8 @@ the Python GUI and vice versa.
     cargo build --release -p tigerhx-gui      # rust/target/release/tigerhxgui(.exe)
 
 `tests/test_rust_parity.py` runs the Python and Rust pipelines on phantoms and
-requires identical labels, AHA maps, checks, display volumes and `.mat`
-files; `tests/test_rust_server.py` is `test_server.py` against the executable.
+requires identical labels, AHA maps, 6/4 sectors, checks, display volumes,
+`.mat` files, CSV import and opened results; `tests/test_rust_server.py` is `test_server.py` against the executable.
 Both are skipped until the Rust builds exist (see `rust/README.md`), and run
 in `.github/workflows/rust-gui.yml`, which also builds and smoke-tests the
 Windows executable.

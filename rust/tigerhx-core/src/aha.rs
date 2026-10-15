@@ -97,6 +97,15 @@ pub fn legacy_lvm(seg: &Vol<u8>, apex_slice: Option<usize>, base_first: bool) ->
     lvm
 }
 
+/// First apical slice of an original-GUI result, read back from its 'LVM'
+/// field (base first, as that GUI assumed): the first slice whose sectors
+/// stop at 4.  None when every slice has 6 sectors.
+pub fn legacy_apex_slice(lvm: &Vol<u8>) -> Option<usize> {
+    let top: Vec<u8> =
+        (0..lvm.nz()).map(|z| (0..lvm.nt()).flat_map(|t| lvm.slice(z, t).iter().copied()).max().unwrap_or(0)).collect();
+    (0..lvm.nz()).find(|&z| (2..=4).contains(&top[z]) && top[z + 1..].iter().all(|&v| v <= 4))
+}
+
 /// Original 'SegAHA' field: segmentation with sectors written as 8..13.
 pub fn legacy_seg_aha(seg: &Vol<u8>, lvm: &Vol<u8>) -> Vol<u8> {
     let data = seg.data.iter().zip(&lvm.data).map(|(&s, &l)| if l > 0 { l + 7 } else { s }).collect();

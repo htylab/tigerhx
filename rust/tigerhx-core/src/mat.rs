@@ -181,3 +181,162 @@ pub fn save_mat(path: &Path, vars: &[Var<'_>]) -> Result<()> {
         Ok(())
     })
 }
+
+// ---------------------------------------------------------------- reading
+
+/// A variable read from a .mat file: dimensions (column-major) and values.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MatVar {
+    pub dims: Vec<usize>,
+    pub data: MatData,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum MatData {
+    /// any numeric or logical class, as f64
+    Num(Vec<f64>),
+    Str(String),
+}
+
+const MI_UINT8: u32 = 2;
+const MI_INT16: u32 = 3;
+const MI_UINT64: u32 = 13;
+const MI_UTF8: u32 = 16;
+const MI_UTF16: u32 = 17;
+
+fn le_u32(b: &[u8], off: usize) -> Option<u32> {
+    b.get(off..off + 4).map(|s| u32::from_le_bytes(s.try_into().unwrap()))
+}
+
+/// One data element: (type, payload, position after it).
+fn element(b: &[u8], pos: usize) -> Result<(u32, &[u8], usize)> {
+    let first = le_u32(b, pos).ok_or_else(|| crate::Error::invalid("truncated .mat element"))?;
+    if first >> 16 != 0 {
+        // small data element: type and size in one word, data in the next 4 bytes
+        let (ty, n) = (first & 0xffff, (first >> 16) as usize);
+        let data = b.get(pos + 4..pos + 4 + n).ok_or_else(|| crate::Error::invalid("truncated .mat element"))?;
+        return Ok((ty, data, pos + 8));
+    }
+    let n = le_u32(b, pos + 4).ok_or_else(|| crate::Error::invalid("truncated .mat element"))? as usize;
+    let data = b.get(pos + 8..pos + 8 + n).ok_or_else(|| crate::Error::invalid("truncated .mat element"))?;
+    let next = if first == MI_COMPRESSED { pos + 8 + n } else { pos + 8 + pad8(n) };
+    Ok((first, data, next))
+}
+
+fn numbers(ty: u32, d: &[u8]) -> Option<Vec<f64>> {
+    macro_rules! conv {
+        ($t:ty, $n:expr) => {
+            d.chunks_exact($n).map(|c| <$t>::from_le_bytes(c.try_into().unwrap()) as f64).collect()
+        };
+    }
+    Some(match ty {
+        MI_INT8 => d.iter().map(|&v| v as i8 as f64).collect(),
+        MI_UINT8 => d.iter().map(|&v| v as f64).collect(),
+        MI_INT16 => conv!(i16, 2),
+        MI_UINT16 => conv!(u16, 2),
+        MI_INT32 => conv!(i32, 4),
+        MI_UINT32 => conv!(u32, 4),
+        MI_SINGLE => conv!(f32, 4),
+        MI_DOUBLE => conv!(f64, 8),
+        MI_INT64 => conv!(i64, 8),
+        MI_UINT64 => conv!(u64, 8),
+        _ => return None,
+    })
+}
+
+/// A miMATRIX element: its name and value (None for classes TigerHx does
+/// not read: cells, structs, objects, sparse matrices).
+fn matrix(b: &[u8]) -> Result<Option<(String, MatVar)>> {
+    let (_, flags, pos) = element(b, 0)?;
+    let class = le_u32(flags, 0).unwrap_or(0) & 0xff;
+    let (_, dims_raw, pos) = element(b, pos)?;
+    let dims: Vec<usize> =
+        dims_raw.chunks_exact(4).map(|c| i32::from_le_bytes(c.try_into().unwrap()).max(0) as usize).collect();
+    let (_, name, pos) = element(b, pos)?;
+    let name = String::from_utf8_lossy(name).into_owned();
+    if !matches!(class, 4 | 6..=15) {
+        return Ok(None);
+    }
+    let (ty, d, _) = if dims.iter().product::<usize>() == 0 { (MI_DOUBLE, &[][..], 0) } else { element(b, pos)? };
+    let data = if class == MX_CHAR {
+        MatData::Str(match ty {
+            MI_UTF8 | MI_INT8 | MI_UINT8 => String::from_utf8_lossy(d).into_owned(),
+            MI_UTF16 | MI_UINT16 => String::from_utf16_lossy(
+                &d.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect::<Vec<_>>(),
+            ),
+            _ => String::new(),
+        })
+    } else {
+        match numbers(ty, d) {
+            Some(v) => MatData::Num(v),
+            None => return Ok(None),
+        }
+    };
+    Ok(Some((name, MatVar { dims, data })))
+}
+
+/// The variables of a MATLAB 5 file (little-endian, compressed or not), as
+/// scipy's loadmat reads them.
+pub fn load_mat(path: &Path) -> Result<std::collections::HashMap<String, MatVar>> {
+    let b = std::fs::read(path).map_err(|e| crate::Error::from(e).context(path.display()))?;
+    if b.len() < 128 || &b[126..128] != b"IM" {
+        return Err(crate::Error::invalid(format!("{}: not a little-endian MATLAB 5 file", path.display())));
+    }
+    let mut vars = std::collections::HashMap::new();
+    let mut pos = 128;
+    while pos + 8 <= b.len() {
+        let (ty, data, next) = element(&b, pos).map_err(|e| e.context(path.display()))?;
+        let inflated;
+        let m = match ty {
+            MI_COMPRESSED => {
+                use std::io::Read;
+                let mut out = Vec::new();
+                flate2::read::ZlibDecoder::new(data)
+                    .read_to_end(&mut out)
+                    .map_err(|e| crate::Error::invalid(format!("{}: {e}", path.display())))?;
+                inflated = out;
+                let (ty, inner, _) = element(&inflated, 0)?;
+                if ty == MI_MATRIX { Some(inner) } else { None }
+            }
+            MI_MATRIX => Some(data),
+            _ => None,
+        };
+        if let Some(m) = m {
+            if let Some((name, var)) = matrix(m).map_err(|e| e.context(path.display()))? {
+                vars.insert(name, var);
+            }
+        }
+        pos = next;
+    }
+    Ok(vars)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn roundtrip() {
+        let dir = std::env::temp_dir().join(format!("tigerhx-mat-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("x.mat");
+        let img = [0.5f32, 1.5, -2.0, 3.25, 4.0, 5.0];
+        let seg = [0u8, 1, 2, 3, 2, 1];
+        save_mat(&p, &[
+            Var::new("input_img", &[1, 2, 3], Data::F32AsDouble(&img)),
+            Var::new("Seg", &[1, 2, 3], Data::U8AsInt64(&seg)),
+            Var::scalar_i64("ED", 7),
+            Var::string("model", "cine4d_v0006_xy_cine.onnx"),
+            Var::new("v", &[4], Data::F32(vec![1.5, 1.5, 8.0, 1.0])),
+        ])
+        .unwrap();
+        let m = load_mat(&p).unwrap();
+        assert_eq!(m["input_img"].dims, vec![1, 2, 3]);
+        assert_eq!(m["input_img"].data, MatData::Num(img.iter().map(|&v| v as f64).collect()));
+        assert_eq!(m["Seg"].data, MatData::Num(seg.iter().map(|&v| v as f64).collect()));
+        assert_eq!(m["ED"].data, MatData::Num(vec![7.0]));
+        assert_eq!(m["model"].data, MatData::Str("cine4d_v0006_xy_cine.onnx".into()));
+        assert_eq!(m["v"].dims, vec![1, 4]);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+}
