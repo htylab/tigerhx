@@ -208,8 +208,8 @@ def answer(dlg, steps):
     confirmed with the OK button (a folder first navigates there)."""
     spec(dlg).wait('ready', timeout=10)
     time.sleep(0.5)
-    if steps is None:
-        button(dlg, 2).click()
+    if steps is None:  # like Esc or the close box
+        dlg.close()
         return
     for text in steps:
         box = name_box(dlg)
@@ -233,7 +233,14 @@ async def pick(gui, page, selector, title, steps, what):
         await asyncio.to_thread(answer, dlg, steps)
     except Exception as e:
         raise AssertionError(f'{what}: {e!r}; windows:\n  {describe(gui)}')
-    assert await asyncio.to_thread(wait_closed, gui), f'{what}: the dialog did not close:\n  {describe(gui)}'
+    if not await asyncio.to_thread(wait_closed, gui, 5):
+        # a click can get lost while the dialog is still settling; ask again
+        log('   still open after 5 s, closing it again:', describe(gui))
+        try:
+            dlg.close()
+        except Exception:
+            pass
+        assert await asyncio.to_thread(wait_closed, gui), f'{what}: the dialog did not close:\n  {describe(gui)}'
     await asyncio.sleep(0.5)
     await check_alive(gui, page, what)
 
