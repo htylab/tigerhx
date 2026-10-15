@@ -138,7 +138,57 @@ def save_mat(path, rdict):
             os.remove(tmp)
 
 
+def load_legacy_mat(path):
+    """An original-GUI result (*_pred_*.mat): image and labels as 4D arrays,
+    the LVM sector field (or None), voxel size padded to 4 and model name."""
+    from scipy.io import loadmat
+    m = loadmat(path)
+    for key in ('input_img', 'Seg'):
+        if key not in m:
+            raise ValueError(f'{basename(path)} has no {key}: not a TigerHx result')
+
+    def four_d(a):
+        a = np.asarray(a)
+        while a.ndim < 4:
+            a = a[..., None]
+        return a
+    zooms = [float(z) for z in np.ravel(m.get('voxel_size', [1, 1, 1]))][:4]
+    zooms += [1.0] * (4 - len(zooms))
+    model = m.get('model')
+    model = str(np.ravel(model)[0]) if model is not None and np.size(model) else ''
+    return {'img': four_d(m['input_img']).astype(np.float32),
+            'seg': four_d(m['Seg']).astype(np.uint8),
+            'lvm': four_d(m['LVM']) if 'LVM' in m else None,
+            'zooms': zooms, 'model': model}
+
+
 CASE_COLUMNS = ['Filename', 'Apex', 'mat_in_inputdir', 'nii_in_inputdir']
+
+
+def _int_or_none(text):
+    try:
+        return int(float(text))
+    except (TypeError, ValueError):
+        return None
+
+
+def read_case_csv(path):
+    """Rows of an original-GUI case list (Filename, Apex, mat_in_inputdir,
+    nii_in_inputdir) as dicts: absolute filename (relative names are taken
+    from the CSV's folder), apex (None when blank or negative) and the two
+    output flags (None when blank, so the global setting applies)."""
+    base = os.path.dirname(os.path.abspath(path))
+    out = []
+    for r in read_csv(path):
+        name = (r.get('Filename') or '').strip().strip('"')
+        if not name:
+            continue
+        apex = _int_or_none(r.get('Apex'))
+        flags = {k: (None if _int_or_none(r.get(k)) is None else bool(_int_or_none(r.get(k))))
+                 for k in ('mat_in_inputdir', 'nii_in_inputdir')}
+        out.append({'path': os.path.normpath(os.path.join(base, name)),
+                    'apex': apex if apex is not None and apex >= 0 else None, **flags})
+    return out
 
 
 def write_csv(path, header, rows):

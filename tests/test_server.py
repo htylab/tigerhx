@@ -63,6 +63,28 @@ def test_native_api_exposes_only_the_dialogs():
     assert all(inspect.ismethod(f) for f in public.values())
 
 
+def test_native_dialogs(monkeypatch):
+    # pywebview's own check of file types (webview.util.parse_file_type): a
+    # description with a comma made the whole file dialog fail
+    import re
+    from tigerhx.webgui.app import FILE_TYPES, NativeDialogs
+    pattern = r'^([\w ]+)\((\*(?:\.(?:\w+|\*))*(?:;\*(?:\.(?:\w+|\*))*)*)\)$'
+    assert all(re.search(pattern, f) for f in FILE_TYPES)
+
+    import types
+    monkeypatch.setitem(sys.modules, 'webview', types.SimpleNamespace(
+        FileDialog=types.SimpleNamespace(OPEN=10, FOLDER=20)))
+
+    class Window:  # no WinForms form: the dialog opens on the calling thread
+        def create_file_dialog(self, dialog, **kw):
+            self.got = (dialog, kw)
+            return ('a.nii.gz',)
+    api = NativeDialogs()
+    api._window = Window()
+    assert api.pick_files() == ['a.nii.gz'] and api._window.got[1]['file_types'] == FILE_TYPES
+    assert api.pick_folder() == ['a.nii.gz']
+
+
 def test_auth_required(server):
     app, url = server
     base = url.split('/?')[0]
@@ -136,3 +158,100 @@ def test_full_flow(server, tmp_path):
             break
         time.sleep(0.1)
     assert again.project.cases[case['id']].crop == case['crop']
+
+
+def wait_idle(call, n=100):
+    for _ in range(n):
+        st = call('/api/state')
+        if all(c['status'] not in ('queued', 'running') for c in st['cases']):
+            return st
+        time.sleep(0.1)
+    raise AssertionError('still running')
+
+
+def legacy_flow(call, tmp_path):
+    """The original GUI's ways in: GenCSV, a CSV with the apex filled in, its
+    results opened again, one output folder, the log.  Shared with the Rust
+    server test."""
+    data = tmp_path / 'data'
+    data.mkdir()
+    for name in ('p1', 'p2'):
+        nib.save(nib.Nifti1Image(phantom_image(phantom()).astype(np.int16), np.diag([1.5, 1.5, 8, 1])),
+                 str(data / f'{name}.nii.gz'))
+    out = tmp_path / 'out'
+    call('/api/settings', {'output_dir': str(out), 'save_mat': True})
+    gen = call('/api/gencsv', {'paths': [str(data)], 'include': '', 'exclude': ''})
+    assert gen['count'] == 2 and os.path.isfile(gen['path'])
+    with open(gen['path'], encoding='utf-8-sig') as f:
+        rows = f.read().splitlines()
+    assert rows[0] == 'Filename,Apex,mat_in_inputdir,nii_in_inputdir' and len(rows) == 3
+    # fill in one apex, as a user would in Excel
+    rows[1] = rows[1].replace(',,', ',4,', 1)
+    rows[1] = rows[1][:rows[1].rfind(',')] + ',1'
+    with open(gen['path'], 'w', encoding='utf-8-sig') as f:
+        f.write('\n'.join(rows) + '\n')
+
+    r = call('/api/cases/add', {'paths': [gen['path']]})
+    assert (r['added'], r['updated'], r['missing']) == (2, 0, [])
+    st = call('/api/state')
+    assert st['output_dir'] == str(out)
+    by_name = {c['name']: c for c in st['cases']}
+    assert by_name['p1']['apex_slice'] == 4 and by_name['p1']['apex_confirmed']
+    assert by_name['p1']['nii_in_inputdir'] is True and by_name['p2']['nii_in_inputdir'] is False
+    assert call('/api/run', {})['queued'] == 2
+    st = wait_idle(call)
+    by_name = {c['name']: c for c in st['cases']}
+    assert by_name['p1']['status'] == 'done' and by_name['p1']['apex_slice'] == 4
+    assert by_name['p2']['status'] == 'review'
+    assert sorted(os.listdir(out)) == ['p1_pred_v9999.mat', 'p2_pred_v9999.mat']
+    assert os.path.isfile(data / 'p1_v9999_seg.nii.gz') and not os.path.exists(data / 'p2_v9999_seg.nii.gz')
+    sec = nib.Nifti1Image.from_bytes(call(f"/api/cases/{by_name['p1']['id']}/volume/sectors.nii"))
+    sec = np.asarray(sec.dataobj)
+    assert sec[:, :, 4].max() == 4 and sec[:, :, 3].max() == 6
+
+    # the results folder opened again: read-only cases with the CSV's apex
+    r = call('/api/cases/add', {'paths': [str(out)], 'results': True})
+    assert r['added'] == 2
+    st = wait_idle(call)
+    opened = {c['name']: c for c in st['cases'] if c['kind'] == 'mat'}
+    assert set(opened) == {'p1_pred_v9999', 'p2_pred_v9999'}
+    p1 = opened['p1_pred_v9999']
+    assert p1['status'] == 'done' and p1['apex_slice'] == 4 and p1['base_first'] is True
+    img = nib.Nifti1Image.from_bytes(call(f"/api/cases/{p1['id']}/volume/image.nii"))
+    assert img.shape == phantom().shape
+    assert call('/api/run', {'ids': [p1['id']]})['queued'] == 0   # nothing to re-run
+    assert sorted(os.listdir(out)) == ['p1_pred_v9999.mat', 'p2_pred_v9999.mat']
+
+    log = call('/api/log?after=0')['entries']
+    texts = ' | '.join(e['text'] for e in log)
+    assert 'GenCSV' in texts and 'Finished p1' in texts and 'Opened p1_pred_v9999' in texts
+    last = log[-1]['id']
+    assert call(f'/api/log?after={last}')['entries'] == []
+
+
+def test_legacy_flow(server, tmp_path):
+    app, url = server
+    opener, call, base = client(url)
+    opener.open(url).read()
+    legacy_flow(call, tmp_path)
+
+
+def test_download_all_models(server, monkeypatch):
+    app, url = server
+    opener, call, base = client(url)
+    opener.open(url).read()
+    from tigerhx.core import models
+    got = []
+
+    def fake(name, progress=None):
+        got.append(name)
+        open(os.path.join(models.model_dir(), name), 'wb').close()
+    monkeypatch.setattr(models, 'ensure_model', fake)
+    assert call('/api/models/download', {})['downloading'] == len(models.GUI_MODELS)
+    for _ in range(50):
+        if len(got) == len(models.GUI_MODELS) and app.model_status['state'] == 'idle':
+            break
+        time.sleep(0.1)
+    assert got == models.GUI_MODELS
+    assert call('/api/models/download', {})['downloading'] == 0
+    assert all(m['downloaded'] for m in call('/api/state')['models'])

@@ -1,0 +1,94 @@
+name: Rust GUI
+
+# The Rust core and GUI (rust/): unit tests and the comparison with the
+# Python core on Linux; the Windows executable, smoke-tested and uploaded as
+# an artifact (also used by release.yml).
+
+on:
+  push:
+    branches: [ "main", "claude/gifted-fermat-i039r8" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+  workflow_call:  # used by release.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: rust
+    - name: Cargo tests and builds
+      working-directory: rust
+      run: |
+        cargo test -p tigerhx-core
+        cargo build -p tigerhx-core --example parity
+        # browser-only build: the window needs WebKitGTK, not the API under test
+        cargo build -p tigerhx-gui --no-default-features
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Compare with the Python core
+      env:  # explicit paths, so a missing build fails instead of skipping
+        TIGERHX_RUST_PARITY: rust/target/debug/examples/parity
+        TIGERHX_RUST_GUI: rust/target/debug/tigerhxgui
+      run: |
+        python -m pip install --upgrade pip
+        pip install . onnxruntime onnx pytest
+        pytest -q -rs tests/test_rust_parity.py tests/test_rust_server.py
+
+  windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: rust
+    # built into the executable (tigerhx-core/build.rs): segments offline
+    - name: Download the default model
+      shell: bash
+      run: |
+        mkdir -p rust/models
+        curl -fL --retry 3 -o rust/models/cine4d_v0006_xy_cine.onnx \
+          https://github.com/htylab/tigerhx/releases/download/modelhub/cine4d_v0006_xy_cine.onnx
+    - name: Build
+      working-directory: rust
+      run: cargo build --release -p tigerhx-gui
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Smoke test the executable
+      run: |
+        python -m pip install --upgrade pip
+        pip install numpy nibabel scipy onnx
+        python tools/smoke_exe.py rust/target/release/tigerhxgui.exe
+    - name: Collect
+      shell: bash
+      run: |
+        # one file, like rustbx: ONNX Runtime is linked in statically and the
+        # default model is built in. The DirectML.dll that ONNX Runtime's
+        # Windows build links to is part of Windows 10 (1903) and later, and
+        # only the CPU is used, so it is not shipped.
+        mkdir dist
+        cp rust/target/release/tigerhxgui.exe dist/
+        ls -l dist
+    - uses: actions/upload-artifact@v4
+      with:
+        name: tigerhxgui-rust-windows-latest
+        path: dist/*
+    # the real window: file and folder dialogs, every way of adding cases
+    - name: UI test
+      run: |
+        pip install playwright pywinauto pillow psutil
+        python tools/ui_test_exe.py dist/tigerhxgui.exe ui-shots
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: ui-test-rust
+        path: ui-shots
+        if-no-files-found: ignore

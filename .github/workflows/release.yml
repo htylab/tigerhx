@@ -1,7 +1,8 @@
 name: Release
 
-# Run by hand only: Actions -> Release -> Run workflow. Builds both Windows
-# executables from the chosen branch (smoke test included) and uploads them,
+# Run by hand only: Actions -> Release -> Run workflow. Builds the Windows
+# executables (the Rust GUI and the PyInstaller ones) from the chosen branch,
+# smoke test included, and uploads them,
 # zipped, to the release for the given tag, creating the tag and release on
 # the built commit if they do not exist yet.
 #
@@ -47,8 +48,12 @@ jobs:
     needs: check
     uses: ./.github/workflows/gui-app.yml
 
+  build-rust:
+    needs: check
+    uses: ./.github/workflows/rust-gui.yml
+
   release:
-    needs: build
+    needs: [build, build-rust]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -65,10 +70,11 @@ jobs:
         NOTES: ${{ inputs.notes }}
         PRERELEASE: ${{ inputs.prerelease }}
       run: |
+        shopt -s nullglob
         zips=()
-        for d in artifacts/*/; do
+        for d in artifacts/*-windows-latest/; do
           name=$(basename "$d"); name="${name%-windows-latest}"
-          (cd "$d" && zip -9 -q "$GITHUB_WORKSPACE/${name}-${TAG}.zip" *.exe)
+          (cd "$d" && zip -9 -q "$GITHUB_WORKSPACE/${name}-${TAG}.zip" *.exe *.dll)
           zips+=("${name}-${TAG}.zip")
         done
         ls -l "${zips[@]}"

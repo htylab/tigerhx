@@ -13,7 +13,9 @@
 On Windows, download `tigerhxgui-<version>.zip`, unzip it and run
 `tigerhxgui.exe` (no installation; models are downloaded on first use). The
 window uses the Microsoft Edge WebView2 runtime, which Windows 10/11 normally
-already has. `tigercinegui-<version>.zip` is the previous Tk GUI.
+already has. `tigerhxgui-rust-<version>.zip` is the same GUI rebuilt in Rust
+(see *Rust GUI* below): one executable instead of the PyInstaller bundle.
+`tigercinegui-<version>.zip` is the previous Tk GUI.
 ### Install package
     pip install onnxruntime #for gpu version: onnxruntime-gpu
     pip install https://github.com/htylab/tigerhx/archive/main.zip
@@ -41,31 +43,59 @@ workspace folder, `~/TigerHx` by default (`-w <folder>` to change).
 
 Workflow:
 
-1. **＋ Files / ＋ Folder** – add cine NIfTI files; folders are searched
-   recursively with optional include / exclude keywords. No CSV is needed.
+1. **＋ Files / CSV, ＋ Folder** – add cine NIfTI files; folders are searched
+   recursively with optional include / exclude keywords. A case list of the
+   previous GUI (`.csv` with `Filename, Apex, mat_in_inputdir,
+   nii_in_inputdir`) can be added too: its Apex values are taken as confirmed
+   and a row's two flags override the global settings for that case (blank =
+   setting). Files named in the CSV that do not exist are listed in the Log.
+   **Only write a CSV** (GenCSV) in the folder dialog writes such a list for
+   the folders entered (`<workspace>/csv/files_<date>.csv`, Apex left blank) to
+   fill in with Excel and add again.
 2. **▶ Segment** – runs the selected model on all pending (or the checked)
-   cases. Models are downloaded on first use.
-3. **Review** – the viewer (NiiVue) shows the image with the segmentation,
-   its contours or the AHA 17-segment overlay, single slice or all slices,
-   zoomed to the heart (the previous GUI's `_crop` views) or the full image,
-   with a frame slider and ED/ES jump. Overlays are drawn as smooth outlines
-   rather than voxel blocks; AHA segments are numbered and coloured by wall,
-   so a wall keeps its colour at every level.
-   The first apical slice and the slice order (base→apex or apex→base) are
-   suggested automatically; check them on the images and use
-   *Use current slice as apex* or *Confirm suggestion*. The AHA labels are
-   recomputed instantly.
+   cases. Models are downloaded on first use; *Settings → Download all
+   models* fetches them in advance.
+3. **Review** – the viewer (NiiVue) shows the image (gray or viridis) with an
+   overlay: the segmentation, its contours, the AHA 17-segment map, the
+   previous GUI's 6/4 sectors (`LVM`: 6 sectors above the apical start, 4 from
+   it on), or the LV or RV mask alone. Single slice or all slices, zoomed to
+   the heart (the previous GUI's `_crop` views) or the full image, with a
+   frame slider and ED/ES jump. Overlays are drawn as smooth outlines rather
+   than voxel blocks; segments are numbered and coloured by wall, so a wall
+   keeps its colour at every level.
+   The slice bar below the image has one button per slice, coloured by level
+   (basal, mid, apical, apex cap) with a marker at the first apical slice;
+   click a slice to show it. The first apical slice and the slice order
+   (base→apex or apex→base) are suggested automatically; check them on the
+   images and use *Use current slice* or *Confirm*. *Confirm, next →* moves on
+   to the next case still to confirm, so a batch can be reviewed in one go.
+   AHA 17 and the 6/4 sectors are recomputed instantly; both are in the
+   `.mat`, so either can be used.
 4. **Segmentation check** (right panel) – slices whose segmentation is worth
    a look: a cavity larger at ES than at ED (often a structure outside the
    ventricle), a cavity missing between two slices that have it, and a
    basal-most LV at ES that is poorly enclosed by myocardium (the LV label
    probably covers atrium). *Show* jumps to the frame and slice; the case
-   list shows the number of warnings (⚠) or ✓.
+   list shows the number of warnings (⚠) or ✓, and can be filtered to the
+   cases still to confirm, flagged, done and so on.
+
+**Open results (.mat)** opens a folder of `*pred*.mat` files written by this
+or the previous GUI, read-only: image and labels come from the file and the
+apex from its `LVM` sectors. **Log** (status bar) shows what was segmented,
+opened or skipped, and errors.
+
+Keyboard: ← → frame, ↑ ↓ slice, Space play, **A** use the current slice as
+apex, **Enter** confirm and go to the next case, **N / P** next / previous
+case, **M** single / all slices, **O** next overlay, **?** shows the list.
 
 Files written per case in `<workspace>/cases/<name>/`: `seg.nii.gz`
-(labels 1–3), `aha17.nii.gz` (AHA segments 1–17 on the myocardium) and,
-unless switched off under *Settings*, the `.mat` file of the previous GUI
-(`*_pred_<version>.mat`, same fields plus `AHA17`).
+(labels 1–3), `aha17.nii.gz` (AHA segments 1–17 on the myocardium) and
+`sectors.nii.gz` (the 6/4 sectors). Unless switched off under *Settings*, the
+`.mat` file of the previous GUI (same fields plus `AHA17`) is written to one
+output folder, `<workspace>/output` or the folder set under *Settings*, named
+as before: the path relative to the added folder joined with `_`, plus
+`_pred_<version>.mat`. *Settings* can also write the `.mat` and
+`<name>_<version>_seg.nii.gz` next to the input file.
 
 Notes:
 
@@ -119,9 +149,30 @@ Pillow, Tcl/Tk), and `tools/smoke_exe.py` then runs the built `.exe` on a
 synthetic case, so a module that is needed but left out fails the build.
 
 To publish a release, run **Actions → Release → Run workflow** on `main` with
-a tag such as `v0.1.0`. It builds both executables and uploads them, zipped,
+a tag such as `v0.1.0`. It builds the executables and uploads them, zipped,
 to that release (creating the tag and release if needed; notes are taken from
 `doc/release-notes/<tag>.md` when present). It only runs when started by hand.
+
+### Rust GUI
+
+`rust/` holds a Rust version of the web GUI: `tigerhx-core` is a port of
+`tigerhx/core` (NIfTI, ONNX Runtime through `ort`, AHA, checks, legacy
+`.mat`, workspace) and `tigerhx-gui` builds `tigerhxgui`, which serves the same
+page and HTTP API as `tigerhx/webgui/server.py` (the files in
+`tigerhx/webgui/static` are embedded) in a native window. It uses the same
+workspace format, models folder (`models` next to the executable, or
+`TIGERHX_MODEL_DIR`) and command line options, so it can open a workspace of
+the Python GUI and vice versa.
+
+    cd rust
+    cargo build --release -p tigerhx-gui      # rust/target/release/tigerhxgui(.exe)
+
+`tests/test_rust_parity.py` runs the Python and Rust pipelines on phantoms and
+requires identical labels, AHA maps, 6/4 sectors, checks, display volumes,
+`.mat` files, CSV import and opened results; `tests/test_rust_server.py` is `test_server.py` against the executable.
+Both are skipped until the Rust builds exist (see `rust/README.md`), and run
+in `.github/workflows/rust-gui.yml`, which also builds and smoke-tests the
+Windows executable.
 
 
 # Label names:
