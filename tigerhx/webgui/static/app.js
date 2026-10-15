@@ -1225,8 +1225,10 @@ function bind() {
         o: () => { if (isSegmented(selectedCase())) setOverlay(OVERLAYS[(OVERLAYS.indexOf(S.overlay) + 1) % OVERLAYS.length]); },
       });
     }
-    // a focused button keeps Enter and Space
-    if ((k === 'Enter' || k === ' ') && ev.target.closest('button')) return;
+    // a focused button keeps Enter and Space, unless it is disabled (as the
+    // run button is once everything is segmented)
+    const btn = ev.target.closest('button');
+    if ((k === 'Enter' || k === ' ') && btn && !btn.disabled) return;
     if (keys[k]) { ev.preventDefault(); keys[k](); }
   });
   window.addEventListener('resize', () => { if (S.view === 'mosaic') applyView(); });
