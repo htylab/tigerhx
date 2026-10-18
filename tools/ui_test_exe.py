@@ -215,8 +215,35 @@ def answer(dlg, steps):
         box = name_box(dlg)
         box.set_edit_text(text)
         time.sleep(0.3)
-        button(dlg, 1).click()
+        press_ok(dlg)
         time.sleep(0.8)
+    finish(dlg)
+
+
+def is_open(dlg):
+    return bool(ctypes.windll.user32.IsWindow(dlg.handle)) and dlg.is_visible()
+
+
+def finish(dlg, tries=3):
+    """OK on a folder path opens that folder in a folder dialog instead of
+    choosing it; OK with an empty name then chooses the folder shown."""
+    for _ in range(tries):
+        time.sleep(1.0)
+        try:
+            if not is_open(dlg):
+                return
+            if dlg.window_text() == FOLDER:
+                name_box(dlg).set_edit_text('')
+                time.sleep(0.3)
+            press_ok(dlg)
+        except Exception:  # closed meanwhile
+            return
+
+
+def press_ok(dlg):
+    """The OK (Open / Select Folder) button as the dialog itself sees it:
+    WM_COMMAND IDOK. A simulated click (BM_CLICK) was sometimes lost."""
+    dlg.send_message(0x0111, 1, button(dlg, 1).handle)
 
 
 OPEN, FOLDER = 'Open', 'Select Folder'  # the dialogs' titles on English Windows
@@ -234,12 +261,13 @@ async def pick(gui, page, selector, title, steps, what):
     except Exception as e:
         raise AssertionError(f'{what}: {e!r}; windows:\n  {describe(gui)}')
     if not await asyncio.to_thread(wait_closed, gui, 5):
-        # a click can get lost while the dialog is still settling; ask again
-        log('   still open after 5 s, closing it again:', describe(gui))
+        # a button press can get lost while the dialog is still settling:
+        # press it again (OK with the name still in the box, or close)
+        log('   still open after 5 s, pressing again:', describe(gui))
         try:
-            dlg.close()
-        except Exception:
-            pass
+            await asyncio.to_thread(finish if steps else (lambda d: d.close()), dlg)
+        except Exception as e:
+            log('   ', repr(e))
         assert await asyncio.to_thread(wait_closed, gui), f'{what}: the dialog did not close:\n  {describe(gui)}'
     await asyncio.sleep(0.5)
     await check_alive(gui, page, what)
