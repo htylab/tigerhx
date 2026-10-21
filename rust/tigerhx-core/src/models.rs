@@ -6,9 +6,8 @@ use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
 
-pub const MODEL_SERVERS: [&str; 4] = [
+pub const MODEL_SERVERS: [&str; 3] = [
     "https://github.com/htylab/tigerhx/releases/download/modelhub/",
-    "https://github.com/htylab/tigerbx/releases/download/modelhub/",
     "https://data.mrilab.org/onnxmodel/dev/",
     "https://data.mrilab.org/onnxmodel/releasev1/",
 ];

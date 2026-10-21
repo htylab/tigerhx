@@ -7,7 +7,6 @@ import sys
 from os.path import basename, dirname, isfile, join
 
 MODEL_SERVERS = ['https://github.com/htylab/tigerhx/releases/download/modelhub/',
-                 'https://github.com/htylab/tigerbx/releases/download/modelhub/',
                  'https://data.mrilab.org/onnxmodel/dev/',
                  'https://data.mrilab.org/onnxmodel/releasev1/']
 
